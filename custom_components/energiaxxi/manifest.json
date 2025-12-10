@@ -1,0 +1,10 @@
+{
+  "domain": "energiaxxi",
+  "name": "Energiaxxi",
+  "version": "1.0.0",
+  "config_flow": true,
+  "documentation": "https://github.com/ToniCifre/energiaxxi",
+  "dependencies": [],
+  "codeowners": ["@ToniCifre"],
+  "requirements": ["curl-cffi==0.13.0"]
+}

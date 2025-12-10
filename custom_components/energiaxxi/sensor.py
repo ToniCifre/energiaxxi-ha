@@ -1,0 +1,35 @@
+import logging
+import async_timeout
+from datetime import timedelta
+
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+
+from .api import EnergiaxxiAPI, InvalidCredentialsError
+from .statistics import async_import_statistics
+
+_LOGGER = logging.getLogger(__name__)
+SCAN_INTERVAL = timedelta(hours=12)
+
+
+class EnergiaxxiCoordinator(DataUpdateCoordinator):
+    def __init__(self, hass, username, password):
+        super().__init__(
+            hass,
+            _LOGGER,
+            name="Energiaxxi",
+            update_interval=SCAN_INTERVAL,
+        )
+        self.api = EnergiaxxiAPI(username, password)
+
+    async def _async_update_data(self):
+        try:
+            async with async_timeout.timeout(45):
+                data = self.api.fetch_consumption()
+        except InvalidCredentialsError as err:
+            raise ConfigEntryAuthFailed from err
+
+        for cid, hourly in data.items():
+            await async_import_statistics(self.hass, cid, hourly)
+
+        return data
