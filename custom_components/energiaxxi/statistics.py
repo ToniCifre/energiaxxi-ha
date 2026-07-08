@@ -1,7 +1,9 @@
 import logging
 from datetime import datetime, timedelta
 
+from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant
+from homeassistant.util.unit_conversion import EnergyConverter
 from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.models import StatisticData
 from homeassistant.components.recorder.statistics import (
@@ -49,8 +51,8 @@ async def async_import_statistics(hass: HomeAssistant, contract_id, hourly):
         name=f"Energiaxxi {contract_id} Energy",
         source=DOMAIN,
         statistic_id=statistic_id,
-        unit_of_measurement="kWh",
-        unit_class=None,
+        unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        unit_class=EnergyConverter.UNIT_CLASS,
         has_sum=True,
         mean_type=StatisticMeanType.NONE,
     )
