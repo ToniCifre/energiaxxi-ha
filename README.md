@@ -1,7 +1,25 @@
+<p align="center">
+  <img src="brands/energiaxxi/logo.png" alt="EnergiaXXI" width="360">
+</p>
+
 # EnergiaXXI — Custom integration for Home Assistant
+
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
 This repository contains a simple custom integration for Home Assistant that retrieves energy consumption information from the
 [EnergiaXXI](https://www.energiaxxi.com/) electricity supplier.
+
+### Installation via HACS
+
+1. In HACS, open the three-dot menu → **Custom repositories**.
+2. Add `https://github.com/ToniCifre/energiaxxi` with category **Integration**.
+3. Search for **Energiaxxi**, install it, and restart Home Assistant.
+4. Go to **Settings → Devices & Services → Add Integration → Energiaxxi** and enter your credentials.
+
+> The integration logo shown in the Home Assistant UI comes from the
+> [home-assistant/brands](https://github.com/home-assistant/brands) repository. The ready-to-submit
+> assets live in [`brands/energiaxxi/`](brands/energiaxxi) — copy them to
+> `custom_integrations/energiaxxi/` in a brands PR so the icon/logo appear in HA and HACS.
 
 ### Quick summary
 
