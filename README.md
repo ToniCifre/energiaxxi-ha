@@ -41,6 +41,8 @@ This repository contains a simple custom integration for Home Assistant that ret
 
 Hourly consumption statistics for each contract detected in the account (identified by `contractNumber`). It cannot be created as a sensor because the data reported by EnergiaXXI is a week behind.
 
+For **PVPC** contracts an hourly **cost** statistic (`energiaxxi:energiaxxi_<contract>_cost`) is also imported, using the official CNMC PVPC hourly prices. Add it in the Energy dashboard via *Electricity grid → Use a statistic that tracks total costs*. The cost is an approximation of the PVPC energy term (it does not include the fixed power term or taxes).
+
 You can import the statistics created as a grid consumption in electricity grid.
 ![electricity_grid.png](images/electricity_grid.png)
 

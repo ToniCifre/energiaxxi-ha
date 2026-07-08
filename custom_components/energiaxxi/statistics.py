@@ -18,56 +18,79 @@ from .common import slugify
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_import_statistics(hass: HomeAssistant, contract_id, hourly, name=None):
+def energy_statistic_id(contract_id) -> str:
+    return f"{DOMAIN}:energiaxxi_{slugify(str(contract_id))}_energy"
+
+
+def cost_statistic_id(contract_id) -> str:
+    return f"{DOMAIN}:energiaxxi_{slugify(str(contract_id))}_cost"
+
+
+async def async_import_energy_statistics(hass: HomeAssistant, contract_id, hourly, name=None):
+    """Import hourly energy (kWh). hourly: list[{datetime, kwh}]."""
+    points = [(row["datetime"], row["kwh"]) for row in hourly]
+    await _async_import(
+        hass,
+        energy_statistic_id(contract_id),
+        name or f"Energiaxxi {contract_id} Energy",
+        UnitOfEnergy.KILO_WATT_HOUR,
+        EnergyConverter.UNIT_CLASS,
+        points,
+    )
+
+
+async def async_import_cost_statistics(hass: HomeAssistant, contract_id, hourly, currency, name=None):
+    """Import hourly cost. hourly: list[{datetime, cost}]. currency e.g. 'EUR'."""
+    points = [(row["datetime"], row["cost"]) for row in hourly]
+    await _async_import(
+        hass,
+        cost_statistic_id(contract_id),
+        name or f"Energiaxxi {contract_id} Cost",
+        currency,
+        None,
+        points,
+    )
+
+
+async def _async_import(hass, statistic_id, name, unit, unit_class, points):
     """
-    hourly: list[dict]
-        datetime: tz-aware datetime
-        kwh     : float
-    name: optional human-readable statistic name (falls back to contract id)
+    points: list[(tz-aware datetime, float value)]
+    Accumulates a monotonic sum, skipping points already stored.
     """
-    if not hourly:
+    if not points:
         return
 
-    statistic_id = f"{DOMAIN}:energiaxxi_{slugify(str(contract_id))}_energy"
-
-    hourly = sorted(hourly, key=lambda x: x["datetime"])
+    points = sorted(points, key=lambda p: p[0])
 
     last_sum, last_start_ts = await async_get_last_stat(hass, statistic_id)
 
-    # Only import rows newer than the last one already stored. This keeps the
-    # cumulative sum monotonic across overlapping re-fetches and is robust to
-    # arbitrarily long gaps (unlike a fixed lookback window).
-    new_rows = [
-        row for row in hourly
-        if last_start_ts is None or row["datetime"].timestamp() > last_start_ts
+    # Only import points newer than the last stored one. Keeps the cumulative
+    # sum monotonic across overlapping re-fetches and is robust to long gaps.
+    new_points = [
+        (dt, value) for dt, value in points
+        if last_start_ts is None or dt.timestamp() > last_start_ts
     ]
-    if not new_rows:
-        _LOGGER.debug("No new consumption rows for %s", statistic_id)
+    if not new_points:
+        _LOGGER.debug("No new rows for %s", statistic_id)
         return
 
     _LOGGER.info(
-        "Importing %d rows for %s (previous sum %.2f kWh)",
-        len(new_rows), statistic_id, last_sum,
+        "Importing %d rows for %s (previous sum %.2f)",
+        len(new_points), statistic_id, last_sum,
     )
 
     stats = []
     running_sum = last_sum
-    for row in new_rows:
-        running_sum += row["kwh"]
-        stats.append(
-            StatisticData(
-                start=row["datetime"],
-                state=row["kwh"],
-                sum=running_sum,
-            )
-        )
+    for dt, value in new_points:
+        running_sum += value
+        stats.append(StatisticData(start=dt, state=value, sum=running_sum))
 
     metadata = StatisticMetaData(
-        name=name or f"Energiaxxi {contract_id} Energy",
+        name=name,
         source=DOMAIN,
         statistic_id=statistic_id,
-        unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        unit_class=EnergyConverter.UNIT_CLASS,
+        unit_of_measurement=unit,
+        unit_class=unit_class,
         has_sum=True,
         mean_type=StatisticMeanType.NONE,
     )
