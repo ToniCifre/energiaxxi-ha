@@ -91,8 +91,17 @@ prices keep updating even if the Endesa fetch fails.
 - `custom_components/energiaxxi/common.py`, `const.py` — shared utilities and constants.
 - `custom_components/energiaxxi/manifest.json` — integration metadata and dependencies.
 
+### Services
+
+- **`energiaxxi.clear_statistics`** — deletes all imported statistics (per-contract energy and cost, plus the
+  national PVPC price) so they can be rebuilt from scratch. Run it from *Developer Tools → Actions* (search
+  for "Energiaxxi: Clear statistics"); the next update repopulates the statistics.
+
 ### Important behavior
 
 - The client uses basic authentication built from the user ID and a token (`tgt`) returned by the API.
+- Consumption is fetched in **15-day batches** (large windows can fail in a single request). Consecutive
+  batches share their boundary day and results are deduped by timestamp, so coverage is contiguous.
+- Consumption data is reported roughly a week behind, so the most recent days are not available yet.
 - If the API returns a response containing the word "incapsula" in an error body, the component raises `IncapsulaDetectedError` (web protection detected).
 - If credentials are invalid, the component raises `InvalidCredentialsError`.
