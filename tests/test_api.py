@@ -83,3 +83,44 @@ def test_contracts_helper(monkeypatch):
     api = make_api(monkeypatch)
     contracts = api.contracts()
     assert contracts[0]["cups"] == CONTRACT["cups"]
+
+
+def test_fetch_consumption_dedupes_across_batches(monkeypatch):
+    # 40-day history -> 3 batches, all returning the same canned day -> dedup to 24h
+    api = make_api(monkeypatch)
+    rows = api.fetch_consumption(history_days=40)["130109476822"]
+    assert len(rows) == 24
+    assert len({r["datetime"] for r in rows}) == 24
+
+
+class TestDateBatches:
+    def _run(self, days, size=15):
+        from datetime import date, timedelta
+        from custom_components.energiaxxi.api import _date_batches
+        start = date(2026, 1, 1)
+        end = start + timedelta(days=days)
+        return start, end, _date_batches(start, end, size)
+
+    def test_single_batch_when_within_size(self):
+        start, end, batches = self._run(10)
+        assert batches == [(start, end)]
+
+    def test_multiple_batches_have_size_span(self):
+        from datetime import timedelta
+        _, _, batches = self._run(40, size=15)
+        assert len(batches) == 3  # [0-15], [15-30], [30-40]
+        for frm, to in batches:
+            assert (to - frm).days <= 15
+
+    def test_batches_are_contiguous_and_cover_range(self):
+        start, end, batches = self._run(40, size=15)
+        assert batches[0][0] == start
+        assert batches[-1][1] == end
+        # consecutive windows share the boundary day (overlap for safe coverage)
+        for (a, b), (c, d) in zip(batches, batches[1:]):
+            assert b == c
+
+    def test_exact_multiple(self):
+        start, end, batches = self._run(30, size=15)
+        assert batches[0] == (start, start.replace(day=16))
+        assert batches[-1][1] == end

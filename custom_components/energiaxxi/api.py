@@ -10,6 +10,26 @@ from curl_cffi.requests.session import Response
 
 _LOGGER = logging.getLogger(__name__)
 
+BATCH_DAYS = 15
+
+
+def _date_batches(start, end, size: int = BATCH_DAYS):
+    """Split [start, end] into <=size-day windows as (from_date, to_date) pairs.
+
+    Consecutive windows share their boundary day (they overlap by one day) so the
+    union covers every day regardless of whether the API treats `from`/`to` as
+    inclusive or exclusive. Callers must dedupe the results by timestamp.
+    """
+    batches = []
+    cur = start
+    while True:
+        win_to = min(cur + timedelta(days=size), end)
+        batches.append((cur, win_to))
+        if win_to >= end:
+            break
+        cur = win_to
+    return batches
+
 
 class EnergiaxxiApiError(Exception):
     """Generic Energiaxxi API error (unexpected response / parse failure)."""
@@ -141,58 +161,75 @@ class EnergiaxxiAPI:
         contracts = self.contracts()
 
         now = datetime.now(self.tz)
-        consumption = defaultdict(list)
+        start_date = (now - timedelta(days=history_days)).date()
+        end_date = now.date()
+
+        # dedup by datetime: overlapping batch boundaries may return a day twice
+        consumption: dict[str, dict] = defaultdict(dict)
         for contract in contracts:
-            body = {
-                "contract": {
-                    "str": contract["str"],
-                    "specificTariff": contract["specificTariff"],
-                    "complementHappy": contract["complementHappy"] or "",
-                    "isHappy": contract["isHappy"],
-                    "contractNumber": contract["contractNumber"],
-                    "cups": contract["cups"],
-                    "effectiveDate": contract["effectiveDate"],
-                    "companyHolderCode": contract["companyHolderCode"],
-                },
-                "infoRequested": {"rolId": "Titu", "clientId": client_id},
-                "periodDetail": {
-                    "isCurrentPeriod": True,
-                    "invoicedPeriod": {
-                        "from": (now - timedelta(days=history_days)).strftime("%d/%m/%Y"),
-                        "to": now.strftime("%d/%m/%Y"),
-                    },
-                    "billSequence": 0,
-                },
-                "userId": self.user_id,
-            }
             contract_number = contract["contractNumber"]
-            r = self._post("/business/contracts/consumptiondetailed-v2", json=body).json()
-            _LOGGER.debug("consumptiondetailed response for %s: %s", contract_number, r)
+            for from_date, to_date in _date_batches(start_date, end_date):
+                for row in self._fetch_window(contract, client_id, from_date, to_date):
+                    consumption[contract_number][row["datetime"]] = row["kwh"]
 
-            day_list = (
-                (r.get("consumptionDetailed") or {})
-                .get("currentYearPeriodDetail", {})
-                .get("dayList")
+        return {
+            cid: [{"datetime": dt, "kwh": kwh} for dt, kwh in sorted(by_dt.items())]
+            for cid, by_dt in consumption.items()
+        }
+
+    def _fetch_window(self, contract, client_id, from_date, to_date) -> list[dict]:
+        """Fetch one date window for a contract. Returns list[{datetime, kwh}]."""
+        contract_number = contract["contractNumber"]
+        body = {
+            "contract": {
+                "str": contract["str"],
+                "specificTariff": contract["specificTariff"],
+                "complementHappy": contract["complementHappy"] or "",
+                "isHappy": contract["isHappy"],
+                "contractNumber": contract_number,
+                "cups": contract["cups"],
+                "effectiveDate": contract["effectiveDate"],
+                "companyHolderCode": contract["companyHolderCode"],
+            },
+            "infoRequested": {"rolId": "Titu", "clientId": client_id},
+            "periodDetail": {
+                "isCurrentPeriod": True,
+                "invoicedPeriod": {
+                    "from": from_date.strftime("%d/%m/%Y"),
+                    "to": to_date.strftime("%d/%m/%Y"),
+                },
+                "billSequence": 0,
+            },
+            "userId": self.user_id,
+        }
+        r = self._post("/business/contracts/consumptiondetailed-v2", json=body).json()
+        _LOGGER.debug(
+            "consumptiondetailed %s [%s-%s]: %s", contract_number, from_date, to_date, r
+        )
+
+        day_list = (
+            (r.get("consumptionDetailed") or {})
+            .get("currentYearPeriodDetail", {})
+            .get("dayList")
+        )
+        if not day_list:
+            _LOGGER.debug(
+                "No consumption for %s in [%s-%s]", contract_number, from_date, to_date
             )
-            if not day_list:
-                _LOGGER.warning("No consumption data for contract %s", contract_number)
-                continue
+            return []
 
-            for day in day_list:
-                for hc in day.get("hourList", []):
-                    consum = (hc.get("hourDistribution") or {}).get("consumTotal")
-                    if consum is None:
-                        continue
-                    consumption[contract_number].append(
-                        {
-                            "datetime": datetime.strptime(
-                                f"{day['date']} {hc['hour']}", "%d/%m/%Y %H:%M"
-                            ).replace(tzinfo=self.tz),
-                            "kwh": float(consum),
-                        }
-                    )
-
-        for contract_number in consumption:
-            consumption[contract_number].sort(key=lambda x: x["datetime"])
-
-        return dict(consumption)
+        rows = []
+        for day in day_list:
+            for hc in day.get("hourList", []):
+                consum = (hc.get("hourDistribution") or {}).get("consumTotal")
+                if consum is None:
+                    continue
+                rows.append(
+                    {
+                        "datetime": datetime.strptime(
+                            f"{day['date']} {hc['hour']}", "%d/%m/%Y %H:%M"
+                        ).replace(tzinfo=self.tz),
+                        "kwh": float(consum),
+                    }
+                )
+        return rows
