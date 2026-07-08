@@ -24,8 +24,8 @@ This repository contains a simple custom integration for Home Assistant that ret
 ### Quick summary
 
 - Domain: `energiaxxi`
-- Purpose: query hourly consumption and contract-related data linked to an EnergiaXXI account and expose them as sensors
-  in Home Assistant.
+- Purpose: query hourly consumption and contract-related data linked to an EnergiaXXI account and expose them as
+  long-term statistics (energy and PVPC cost) in Home Assistant.
 - Integration: uses a `config_flow` (integration configuration UI) and the `curl-cffi` library to communicate with the
   web API.
 
@@ -39,20 +39,40 @@ This repository contains a simple custom integration for Home Assistant that ret
 
 ### What it exposes
 
-Hourly consumption statistics for each contract detected in the account (identified by `contractNumber`). It cannot be created as a sensor because the data reported by EnergiaXXI is a week behind.
+- **Hourly energy statistics** per contract (`energiaxxi:energiaxxi_<contract>_energy`, kWh). These are
+  external statistics rather than live sensors, because EnergiaXXI reports the data about a week behind.
+- **Hourly cost statistics** for **PVPC** contracts (`energiaxxi:energiaxxi_<contract>_cost`), computed from
+  the official CNMC PVPC hourly prices. This is an approximation of the PVPC energy term — it does not
+  include the fixed power term or taxes.
+- A **device** per contract (identified by its CUPS) with a diagnostic *Last reading* sensor that exposes
+  the contract metadata (CUPS, tariff, contracted power).
 
-For **PVPC** contracts an hourly **cost** statistic (`energiaxxi:energiaxxi_<contract>_cost`) is also imported, using the official CNMC PVPC hourly prices. Add it in the Energy dashboard via *Electricity grid → Use a statistic that tracks total costs*. The cost is an approximation of the PVPC energy term (it does not include the fixed power term or taxes).
+### Adding it to the Energy dashboard
 
-You can import the statistics created as a grid consumption in electricity grid.
-![electricity_grid.png](images/electricity_grid.png)
+Go to **Settings → Dashboards → Energy → Electricity grid → Add consumption** and pick the
+*Energiaxxi … Energy* statistic. For PVPC contracts, set **Cost tracking → Use a statistic that tracks total
+costs** and choose the matching *Energiaxxi … Cost* statistic.
+
+<p align="center">
+  <img src="images/electricity_grid.png" alt="Energy dashboard grid configuration" width="380">
+</p>
+
+Once configured, the hourly consumption shows up in the Energy dashboard:
+
+<p align="center">
+  <img src="images/electricity_usage.png" alt="Hourly electricity usage" width="720">
+</p>
 
 ### Main component files
 
 - `custom_components/energiaxxi/api.py` — HTTP client that authenticates and fetches detailed consumption data.
-- `custom_components/energiaxxi/sensor.py` — Entity (sensor) definitions to expose consumption values.
-- `custom_components/energiaxxi/config_flow.py` — Configuration flow for the Home Assistant UI.
-- `custom_components/energiaxxi/common.py`, `const.py` — Shared utilities and constants.
-- `custom_components/energiaxxi/manifest.json` — Integration metadata and dependencies.
+- `custom_components/energiaxxi/prices.py` — client for the CNMC public PVPC hourly price API.
+- `custom_components/energiaxxi/coordinator.py` — `DataUpdateCoordinator` that fetches data and imports statistics.
+- `custom_components/energiaxxi/statistics.py` — imports the energy and cost external statistics.
+- `custom_components/energiaxxi/sensor.py` — diagnostic *Last reading* sensor and per-contract device.
+- `custom_components/energiaxxi/config_flow.py` — configuration and options flow for the Home Assistant UI.
+- `custom_components/energiaxxi/common.py`, `const.py` — shared utilities and constants.
+- `custom_components/energiaxxi/manifest.json` — integration metadata and dependencies.
 
 ### Important behavior
 
