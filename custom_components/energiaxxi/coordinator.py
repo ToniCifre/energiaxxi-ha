@@ -1,5 +1,5 @@
+import asyncio
 import logging
-import async_timeout
 from datetime import timedelta
 
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -24,8 +24,8 @@ class EnergiaxxiCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         try:
-            async with async_timeout.timeout(45):
-                data = self.api.fetch_consumption()
+            async with asyncio.timeout(45):
+                data = await self.hass.async_add_executor_job(self.api.fetch_consumption)
         except InvalidCredentialsError as err:
             raise ConfigEntryAuthFailed from err
 

@@ -1,11 +1,8 @@
-from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 
 from .const import DOMAIN
-from .sensor import EnergiaxxiCoordinator
-
-PLATFORMS = [Platform.SENSOR]
+from .coordinator import EnergiaxxiCoordinator
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -13,4 +10,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     await coordinator.async_config_entry_first_refresh()
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    hass.data[DOMAIN].pop(entry.entry_id, None)
     return True

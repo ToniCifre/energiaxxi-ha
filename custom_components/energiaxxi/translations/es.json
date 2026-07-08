@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Energiaxxi",
+        "description": "Introduce las credenciales de tu cuenta Energiaxxi (Endesa).",
+        "data": {
+          "username": "Usuario",
+          "password": "Contraseña"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Volver a autenticar Energiaxxi",
+        "description": "Tus credenciales ya no son válidas. Introduce la contraseña de nuevo.",
+        "data": {
+          "password": "Contraseña"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Usuario o contraseña incorrectos.",
+      "incapsula": "Bloqueado por la protección Incapsula, inténtalo más tarde.",
+      "unknown": "Error inesperado."
+    },
+    "abort": {
+      "already_configured": "Esta cuenta ya está configurada.",
+      "reauth_successful": "La reautenticación se ha realizado correctamente."
+    }
+  }
+}
