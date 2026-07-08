@@ -32,12 +32,14 @@
       "init": {
         "title": "Energiaxxi options",
         "data": {
-          "history_days": "History window (days)",
+          "history_days": "Consumption history window (days)",
+          "price_days": "Price history window (days)",
           "scan_interval_hours": "Update interval (hours)"
         },
         "data_description": {
-          "history_days": "Days of history requested each update. Endesa only serves the current billing period, so large values may not return older data.",
-          "scan_interval_hours": "How often to poll for new consumption data."
+          "history_days": "Days of consumption history requested each update. Endesa only serves the current billing period, so large values may not return older data.",
+          "price_days": "Days of PVPC price history to import each update. Prices are national and imported whether or not consumption is available.",
+          "scan_interval_hours": "How often to poll for new data (max 48)."
         }
       }
     }

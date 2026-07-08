@@ -18,9 +18,14 @@ class _FakePrices:
         return self._by_day.get(day, {})
 
 
+class _FakeApi:
+    tz = TZ
+
+
 def _bare_coordinator(prices):
     coord = EnergiaxxiCoordinator.__new__(EnergiaxxiCoordinator)
     coord.prices = prices
+    coord.api = _FakeApi()
     return coord
 
 
@@ -60,3 +65,28 @@ def test_compute_cost_handles_price_error():
     hourly = [{"datetime": base, "kwh": 1.0}]
 
     assert coord._compute_cost(hourly) == []  # error swallowed, no crash
+
+
+class _AllDaysPrices:
+    def __init__(self, hours=24, raise_all=False):
+        self._hours = hours
+        self._raise = raise_all
+
+    def get_day_prices(self, day):
+        if self._raise:
+            raise PvpcPriceError("down")
+        return {h: 0.20 for h in range(self._hours)}
+
+
+def test_fetch_prices_covers_requested_days():
+    coord = _bare_coordinator(_AllDaysPrices())
+    points = coord._fetch_prices(3)
+    assert len(points) == 72  # 3 days * 24 hours
+    # tz-aware, sorted-able, distinct hours
+    assert all(dt.tzinfo is not None for dt, _ in points)
+    assert len({dt for dt, _ in points}) == 72
+
+
+def test_fetch_prices_swallows_errors():
+    coord = _bare_coordinator(_AllDaysPrices(raise_all=True))
+    assert coord._fetch_prices(3) == []

@@ -7,8 +7,10 @@ import voluptuous as vol
 from .api import EnergiaxxiAPI, InvalidCredentialsError, IncapsulaDetectedError
 from .const import (
     CONF_HISTORY_DAYS,
+    CONF_PRICE_DAYS,
     CONF_SCAN_INTERVAL_HOURS,
     DEFAULT_HISTORY_DAYS,
+    DEFAULT_PRICE_DAYS,
     DEFAULT_SCAN_INTERVAL_HOURS,
     DOMAIN,
 )
@@ -111,9 +113,13 @@ class EnergiaxxiOptionsFlow(config_entries.OptionsFlow):
                     default=options.get(CONF_HISTORY_DAYS, DEFAULT_HISTORY_DAYS),
                 ): vol.All(int, vol.Range(min=1, max=60)),
                 vol.Required(
+                    CONF_PRICE_DAYS,
+                    default=options.get(CONF_PRICE_DAYS, DEFAULT_PRICE_DAYS),
+                ): vol.All(int, vol.Range(min=1, max=60)),
+                vol.Required(
                     CONF_SCAN_INTERVAL_HOURS,
                     default=options.get(CONF_SCAN_INTERVAL_HOURS, DEFAULT_SCAN_INTERVAL_HOURS),
-                ): vol.All(int, vol.Range(min=1, max=168)),
+                ): vol.All(int, vol.Range(min=1, max=48)),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

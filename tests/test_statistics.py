@@ -27,7 +27,8 @@ def _install_fake_recorder(monkeypatch):
     def fake_add(hass, metadata, stats):
         for s in stats:
             table.append({"sid": metadata["statistic_id"], "start": s["start"],
-                          "sum": s["sum"], "state": s["state"]})
+                          "sum": s.get("sum"), "state": s.get("state"),
+                          "mean": s.get("mean")})
         capture["metadata"] = metadata
         capture["n"] = len(stats)
 
@@ -88,6 +89,29 @@ def test_cost_statistic(monkeypatch):
     assert round(table[-1]["sum"], 4) == 2.4  # 24 * 0.1
 
 
+def test_price_statistic_is_mean(monkeypatch):
+    table, cap = _install_fake_recorder(monkeypatch)
+    base = datetime(2026, 7, 7, 0, 0, tzinfo=TZ)
+    points = [(base + timedelta(hours=h), 0.20 + h * 0.01) for h in range(24)]
+    asyncio.run(st.async_import_price_statistics(None, points, "EUR", name="PVPC"))
+
+    md = cap["metadata"]
+    assert md["statistic_id"] == "energiaxxi:pvpc_price"
+    assert md["unit_of_measurement"] == "EUR/kWh"
+    assert md["has_sum"] is False
+    assert md["mean_type"] == st.StatisticMeanType.ARITHMETIC
+    assert len(table) == 24
+    # stored as mean, not sum
+    assert table[0]["sid"] == "energiaxxi:pvpc_price"
+
+
+def test_price_empty_noop(monkeypatch):
+    table, _ = _install_fake_recorder(monkeypatch)
+    asyncio.run(st.async_import_price_statistics(None, [], "EUR"))
+    assert table == []
+
+
 def test_statistic_id_helpers():
     assert st.energy_statistic_id("A B") == "energiaxxi:energiaxxi_a_b_energy"
     assert st.cost_statistic_id("A B") == "energiaxxi:energiaxxi_a_b_cost"
+    assert st.price_statistic_id() == "energiaxxi:pvpc_price"

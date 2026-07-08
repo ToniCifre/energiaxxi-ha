@@ -32,12 +32,14 @@
       "init": {
         "title": "Opciones de Energiaxxi",
         "data": {
-          "history_days": "Ventana de histórico (días)",
+          "history_days": "Ventana de histórico de consumo (días)",
+          "price_days": "Ventana de histórico de precios (días)",
           "scan_interval_hours": "Intervalo de actualización (horas)"
         },
         "data_description": {
-          "history_days": "Días de histórico solicitados en cada actualización. Endesa solo sirve el periodo de facturación actual, así que valores altos pueden no devolver datos más antiguos.",
-          "scan_interval_hours": "Frecuencia con la que se consultan nuevos datos de consumo."
+          "history_days": "Días de histórico de consumo solicitados en cada actualización. Endesa solo sirve el periodo de facturación actual, así que valores altos pueden no devolver datos más antiguos.",
+          "price_days": "Días de histórico de precios PVPC a importar en cada actualización. Los precios son nacionales y se importan haya o no consumo.",
+          "scan_interval_hours": "Frecuencia con la que se consultan nuevos datos (máx. 48)."
         }
       }
     }
