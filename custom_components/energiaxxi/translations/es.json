@@ -52,5 +52,11 @@
         "name": "Última lectura"
       }
     }
+  },
+  "services": {
+    "clear_statistics": {
+      "name": "Borrar estadísticas",
+      "description": "Elimina todas las estadísticas de largo plazo de Energiaxxi (energía, coste y precio PVPC) para reconstruirlas desde cero en la próxima actualización."
+    }
   }
 }

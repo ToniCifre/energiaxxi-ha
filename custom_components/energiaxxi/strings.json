@@ -52,5 +52,11 @@
         "name": "Last reading"
       }
     }
+  },
+  "services": {
+    "clear_statistics": {
+      "name": "Clear statistics",
+      "description": "Delete all Energiaxxi long-term statistics (energy, cost and PVPC price) so they can be rebuilt from scratch on the next update."
+    }
   }
 }
