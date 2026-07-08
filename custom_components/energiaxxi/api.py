@@ -114,9 +114,21 @@ class EnergiaxxiAPI:
         contract_info = self._post("/users/contractstatessummarized-v3", json=body)
         return contract_info.json()
 
-    def fetch_consumption(self) -> dict:
+    def contracts(self) -> list[dict]:
+        """Return the list of contracts (authenticating if needed)."""
+        if not self._authenticated:
+            self._refresh_auth()
+        contracts = self.contract_info.get("contracts")
+        if not contracts:
+            raise EnergiaxxiApiError(f"No contracts in response: {self.contract_info}")
+        return contracts
+
+    def fetch_consumption(self, history_days: int = 25) -> dict:
         """
         Returns dict  contract_number -> [ {date, consumption}, … ]
+
+        history_days bounds the requested window. Endesa only serves the current
+        billing period, so larger values may not return older data.
         """
         if not self._authenticated:
             self._refresh_auth()
@@ -126,9 +138,7 @@ class EnergiaxxiAPI:
         except (KeyError, TypeError) as err:
             raise EnergiaxxiApiError(f"Unexpected user info response: {self.user_info}") from err
 
-        contracts = self.contract_info.get("contracts")
-        if not contracts:
-            raise EnergiaxxiApiError(f"No contracts in response: {self.contract_info}")
+        contracts = self.contracts()
 
         now = datetime.now(self.tz)
         consumption = defaultdict(list)
@@ -148,7 +158,7 @@ class EnergiaxxiAPI:
                 "periodDetail": {
                     "isCurrentPeriod": True,
                     "invoicedPeriod": {
-                        "from": (now - timedelta(days=15)).strftime("%d/%m/%Y"),
+                        "from": (now - timedelta(days=history_days)).strftime("%d/%m/%Y"),
                         "to": now.strftime("%d/%m/%Y"),
                     },
                     "billSequence": 0,

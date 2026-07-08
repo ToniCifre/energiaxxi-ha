@@ -1,1 +1,7 @@
 DOMAIN = "energiaxxi"
+
+CONF_HISTORY_DAYS = "history_days"
+CONF_SCAN_INTERVAL_HOURS = "scan_interval_hours"
+
+DEFAULT_HISTORY_DAYS = 25
+DEFAULT_SCAN_INTERVAL_HOURS = 12

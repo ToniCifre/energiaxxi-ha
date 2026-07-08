@@ -1,10 +1,17 @@
 import logging
 
 from homeassistant import config_entries
+from homeassistant.core import callback
 import voluptuous as vol
 
 from .api import EnergiaxxiAPI, InvalidCredentialsError, IncapsulaDetectedError
-from .const import DOMAIN
+from .const import (
+    CONF_HISTORY_DAYS,
+    CONF_SCAN_INTERVAL_HOURS,
+    DEFAULT_HISTORY_DAYS,
+    DEFAULT_SCAN_INTERVAL_HOURS,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -12,6 +19,11 @@ _LOGGER = logging.getLogger(__name__)
 class EnergiaxxiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return EnergiaxxiOptionsFlow()
 
     async def _validate(self, username: str, password: str) -> None:
         """Validate credentials against the API. Raises on failure."""
@@ -83,3 +95,25 @@ class EnergiaxxiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             description_placeholders={"username": username},
             errors=errors,
         )
+
+
+class EnergiaxxiOptionsFlow(config_entries.OptionsFlow):
+
+    async def async_step_init(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
+        options = self.config_entry.options
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_HISTORY_DAYS,
+                    default=options.get(CONF_HISTORY_DAYS, DEFAULT_HISTORY_DAYS),
+                ): vol.All(int, vol.Range(min=1, max=60)),
+                vol.Required(
+                    CONF_SCAN_INTERVAL_HOURS,
+                    default=options.get(CONF_SCAN_INTERVAL_HOURS, DEFAULT_SCAN_INTERVAL_HOURS),
+                ): vol.All(int, vol.Range(min=1, max=168)),
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema)

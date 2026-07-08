@@ -26,5 +26,27 @@
       "already_configured": "Esta cuenta ya está configurada.",
       "reauth_successful": "La reautenticación se ha realizado correctamente."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de Energiaxxi",
+        "data": {
+          "history_days": "Ventana de histórico (días)",
+          "scan_interval_hours": "Intervalo de actualización (horas)"
+        },
+        "data_description": {
+          "history_days": "Días de histórico solicitados en cada actualización. Endesa solo sirve el periodo de facturación actual, así que valores altos pueden no devolver datos más antiguos.",
+          "scan_interval_hours": "Frecuencia con la que se consultan nuevos datos de consumo."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_reading": {
+        "name": "Última lectura"
+      }
+    }
   }
 }

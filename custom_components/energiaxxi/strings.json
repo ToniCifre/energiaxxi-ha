@@ -26,5 +26,27 @@
       "already_configured": "This account is already configured.",
       "reauth_successful": "Reauthentication was successful."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Energiaxxi options",
+        "data": {
+          "history_days": "History window (days)",
+          "scan_interval_hours": "Update interval (hours)"
+        },
+        "data_description": {
+          "history_days": "Days of history requested each update. Endesa only serves the current billing period, so large values may not return older data.",
+          "scan_interval_hours": "How often to poll for new consumption data."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_reading": {
+        "name": "Last reading"
+      }
+    }
   }
 }

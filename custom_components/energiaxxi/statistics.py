@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timedelta
 
 from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant
@@ -8,9 +7,9 @@ from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.models import StatisticData
 from homeassistant.components.recorder.statistics import (
     async_add_external_statistics,
+    get_last_statistics,
     StatisticMetaData,
     StatisticMeanType,
-    statistics_during_period,
 )
 
 from .const import DOMAIN
@@ -19,11 +18,12 @@ from .common import slugify
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_import_statistics(hass: HomeAssistant, contract_id, hourly):
+async def async_import_statistics(hass: HomeAssistant, contract_id, hourly, name=None):
     """
     hourly: list[dict]
         datetime: tz-aware datetime
         kwh     : float
+    name: optional human-readable statistic name (falls back to contract id)
     """
     if not hourly:
         return
@@ -32,12 +32,27 @@ async def async_import_statistics(hass: HomeAssistant, contract_id, hourly):
 
     hourly = sorted(hourly, key=lambda x: x["datetime"])
 
-    last_sum = await async_get_last_sum(hass, hourly[0]["datetime"], statistic_id)
-    _LOGGER.info(f"Last sum for {statistic_id} is {last_sum:.2f} kWh")
+    last_sum, last_start_ts = await async_get_last_stat(hass, statistic_id)
+
+    # Only import rows newer than the last one already stored. This keeps the
+    # cumulative sum monotonic across overlapping re-fetches and is robust to
+    # arbitrarily long gaps (unlike a fixed lookback window).
+    new_rows = [
+        row for row in hourly
+        if last_start_ts is None or row["datetime"].timestamp() > last_start_ts
+    ]
+    if not new_rows:
+        _LOGGER.debug("No new consumption rows for %s", statistic_id)
+        return
+
+    _LOGGER.info(
+        "Importing %d rows for %s (previous sum %.2f kWh)",
+        len(new_rows), statistic_id, last_sum,
+    )
 
     stats = []
     running_sum = last_sum
-    for row in hourly:
+    for row in new_rows:
         running_sum += row["kwh"]
         stats.append(
             StatisticData(
@@ -48,7 +63,7 @@ async def async_import_statistics(hass: HomeAssistant, contract_id, hourly):
         )
 
     metadata = StatisticMetaData(
-        name=f"Energiaxxi {contract_id} Energy",
+        name=name or f"Energiaxxi {contract_id} Energy",
         source=DOMAIN,
         statistic_id=statistic_id,
         unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
@@ -61,19 +76,17 @@ async def async_import_statistics(hass: HomeAssistant, contract_id, hourly):
     )
 
 
-async def async_get_last_sum(hass: HomeAssistant, end_time: datetime, statistic_id: str) -> float:
-    """Return the last known sum for this statistic within the last 30 days."""
-    start_time = end_time - timedelta(days=30)
+async def async_get_last_stat(hass: HomeAssistant, statistic_id: str) -> tuple[float, float | None]:
+    """Return (last sum, last start epoch) for this statistic, regardless of age."""
     stats = await get_instance(hass).async_add_executor_job(
-        statistics_during_period,
+        get_last_statistics,
         hass,
-        start_time,
-        end_time,
-        {statistic_id},
-        "hour",
-        None,
+        1,
+        statistic_id,
+        True,
         {"sum"},
     )
     if stats.get(statistic_id):
-        return stats[statistic_id][-1]["sum"]
-    return 0.0
+        row = stats[statistic_id][0]
+        return float(row["sum"] or 0.0), row.get("start")
+    return 0.0, None
