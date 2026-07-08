@@ -25,7 +25,7 @@ This repository contains a simple custom integration for Home Assistant that ret
 
 - Domain: `energiaxxi`
 - Purpose: query hourly consumption and contract-related data linked to an EnergiaXXI account and expose them as
-  long-term statistics (energy and PVPC cost) in Home Assistant.
+  long-term statistics (energy, PVPC cost and PVPC price) in Home Assistant.
 - Integration: uses a `config_flow` (integration configuration UI) and the `curl-cffi` library to communicate with the
   web API.
 
@@ -44,6 +44,8 @@ This repository contains a simple custom integration for Home Assistant that ret
 - **Hourly cost statistics** for **PVPC** contracts (`energiaxxi:energiaxxi_<contract>_cost`), computed from
   the official CNMC PVPC hourly prices. This is an approximation of the PVPC energy term — it does not
   include the fixed power term or taxes.
+- A **PVPC price statistic** (`energiaxxi:pvpc_price`, `<currency>/kWh`), a national hourly-mean statistic
+  imported independently of the account — it is updated whether or not consumption data is available.
 - A **device** per contract (identified by its CUPS) with a diagnostic *Last reading* sensor that exposes
   the contract metadata (CUPS, tariff, contracted power).
 
@@ -63,12 +65,27 @@ Once configured, the hourly consumption shows up in the Energy dashboard:
   <img src="images/electricity_usage.png" alt="Hourly electricity usage" width="720">
 </p>
 
+### Options
+
+After adding the integration, open its **Configure** dialog (Settings → Devices & Services → Energiaxxi →
+Configure) to tune:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| Consumption history window (days) | 25 | Days of consumption requested each update. Endesa only serves the current billing period, so large values may not return older data. |
+| Price history window (days) | 7 | Days of PVPC prices imported each update. |
+| Consumption update interval (hours) | 12 | How often to poll Endesa (max 48). |
+| Price update interval (hours) | 12 | How often to poll the CNMC for prices (max 48). |
+
+Consumption and prices are fetched by two independent coordinators, so they poll on their own schedules —
+prices keep updating even if the Endesa fetch fails.
+
 ### Main component files
 
 - `custom_components/energiaxxi/api.py` — HTTP client that authenticates and fetches detailed consumption data.
 - `custom_components/energiaxxi/prices.py` — client for the CNMC public PVPC hourly price API.
-- `custom_components/energiaxxi/coordinator.py` — `DataUpdateCoordinator` that fetches data and imports statistics.
-- `custom_components/energiaxxi/statistics.py` — imports the energy and cost external statistics.
+- `custom_components/energiaxxi/coordinator.py` — separate price and consumption `DataUpdateCoordinator`s that fetch data and import statistics.
+- `custom_components/energiaxxi/statistics.py` — imports the energy, cost and price external statistics.
 - `custom_components/energiaxxi/sensor.py` — diagnostic *Last reading* sensor and per-contract device.
 - `custom_components/energiaxxi/config_flow.py` — configuration and options flow for the Home Assistant UI.
 - `custom_components/energiaxxi/common.py`, `const.py` — shared utilities and constants.
