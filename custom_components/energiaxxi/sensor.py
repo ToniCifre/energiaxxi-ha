@@ -9,7 +9,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .common import contract_location
 from .const import DOMAIN
-from .coordinator import EnergiaxxiConfigEntry, EnergiaxxiCoordinator
+from .coordinator import EnergiaxxiConfigEntry, EnergiaxxiConsumptionCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,14 +19,14 @@ async def async_setup_entry(
     entry: EnergiaxxiConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator = entry.runtime_data
+    coordinator = entry.runtime_data.consumption
     async_add_entities(
         EnergiaxxiLastReadingSensor(coordinator, contract_number)
         for contract_number in coordinator.contracts
     )
 
 
-class EnergiaxxiLastReadingSensor(CoordinatorEntity[EnergiaxxiCoordinator], SensorEntity):
+class EnergiaxxiLastReadingSensor(CoordinatorEntity[EnergiaxxiConsumptionCoordinator], SensorEntity):
     """Timestamp of the most recent hourly reading imported for a contract.
 
     The consumption itself is exposed as an external statistic (used by the
@@ -39,7 +39,7 @@ class EnergiaxxiLastReadingSensor(CoordinatorEntity[EnergiaxxiCoordinator], Sens
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator: EnergiaxxiCoordinator, contract_number: str) -> None:
+    def __init__(self, coordinator: EnergiaxxiConsumptionCoordinator, contract_number: str) -> None:
         super().__init__(coordinator)
         self._contract_number = contract_number
         self._attr_unique_id = f"{contract_number}_last_reading"

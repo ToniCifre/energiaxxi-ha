@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant
@@ -15,12 +16,15 @@ from .api import (
 )
 from .common import contract_location
 from .const import (
+    CONF_CONSUMPTION_INTERVAL_HOURS,
     CONF_HISTORY_DAYS,
     CONF_PRICE_DAYS,
-    CONF_SCAN_INTERVAL_HOURS,
+    CONF_PRICE_INTERVAL_HOURS,
+    DEFAULT_CONSUMPTION_INTERVAL_HOURS,
     DEFAULT_HISTORY_DAYS,
     DEFAULT_PRICE_DAYS,
-    DEFAULT_SCAN_INTERVAL_HOURS,
+    DEFAULT_PRICE_INTERVAL_HOURS,
+    interval_option,
 )
 from .prices import PvpcPriceAPI, PvpcPriceError
 from .statistics import (
@@ -31,35 +35,37 @@ from .statistics import (
 
 _LOGGER = logging.getLogger(__name__)
 
-type EnergiaxxiConfigEntry = ConfigEntry[EnergiaxxiCoordinator]
+type EnergiaxxiConfigEntry = ConfigEntry[EnergiaxxiRuntimeData]
 
 
-class EnergiaxxiCoordinator(DataUpdateCoordinator):
+@dataclass
+class EnergiaxxiRuntimeData:
+    consumption: "EnergiaxxiConsumptionCoordinator"
+    price: "EnergiaxxiPriceCoordinator"
+
+
+class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
+    """Imports national PVPC hourly prices, independent of the Endesa account."""
+
     def __init__(self, hass: HomeAssistant, entry: EnergiaxxiConfigEntry):
-        self.history_days = entry.options.get(CONF_HISTORY_DAYS, DEFAULT_HISTORY_DAYS)
-        self.price_days = entry.options.get(CONF_PRICE_DAYS, DEFAULT_PRICE_DAYS)
-        scan_hours = entry.options.get(CONF_SCAN_INTERVAL_HOURS, DEFAULT_SCAN_INTERVAL_HOURS)
+        interval = interval_option(
+            entry.options, CONF_PRICE_INTERVAL_HOURS, DEFAULT_PRICE_INTERVAL_HOURS
+        )
         super().__init__(
             hass,
             _LOGGER,
-            name="Energiaxxi",
+            name="Energiaxxi PVPC prices",
             config_entry=entry,
-            update_interval=timedelta(hours=scan_hours),
+            update_interval=timedelta(hours=interval),
         )
-        self.api = EnergiaxxiAPI(entry.data["username"], entry.data["password"])
-        self.prices = PvpcPriceAPI(self.api.tz)
+        self.prices = PvpcPriceAPI()
         self.currency = hass.config.currency
-        # contractNumber -> contract dict (metadata for the device/sensors)
-        self.contracts: dict[str, dict] = {}
+        self.price_days = entry.options.get(CONF_PRICE_DAYS, DEFAULT_PRICE_DAYS)
 
     def _fetch_prices(self, price_days: int) -> list[tuple]:
-        """Fetch the last `price_days` days of hourly PVPC prices. Blocking.
-
-        Independent of the Endesa account: national prices, known day-ahead.
-        Returns list[(tz-aware datetime, price)].
-        """
+        """Fetch the last `price_days` days of hourly PVPC prices. Blocking."""
         points = []
-        today = datetime.now(self.api.tz).date()
+        today = datetime.now(self.prices.tz).date()
         for i in range(price_days):
             day = today - timedelta(days=i)
             try:
@@ -68,9 +74,39 @@ class EnergiaxxiCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning("Skipping prices for %s: %s", day, err)
                 continue
             for hour, price in prices.items():
-                dt = datetime(day.year, day.month, day.day, hour, tzinfo=self.api.tz)
+                dt = datetime(day.year, day.month, day.day, hour, tzinfo=self.prices.tz)
                 points.append((dt, price))
         return points
+
+    async def _async_update_data(self):
+        points = await self.hass.async_add_executor_job(self._fetch_prices, self.price_days)
+        if points:
+            await async_import_price_statistics(
+                self.hass, points, self.currency, name="Energiaxxi PVPC Price"
+            )
+        return points
+
+
+class EnergiaxxiConsumptionCoordinator(DataUpdateCoordinator):
+    """Imports per-contract hourly energy and (for PVPC contracts) cost."""
+
+    def __init__(self, hass: HomeAssistant, entry: EnergiaxxiConfigEntry):
+        interval = interval_option(
+            entry.options, CONF_CONSUMPTION_INTERVAL_HOURS, DEFAULT_CONSUMPTION_INTERVAL_HOURS
+        )
+        super().__init__(
+            hass,
+            _LOGGER,
+            name="Energiaxxi consumption",
+            config_entry=entry,
+            update_interval=timedelta(hours=interval),
+        )
+        self.api = EnergiaxxiAPI(entry.data["username"], entry.data["password"])
+        self.prices = PvpcPriceAPI(self.api.tz)
+        self.currency = hass.config.currency
+        self.history_days = entry.options.get(CONF_HISTORY_DAYS, DEFAULT_HISTORY_DAYS)
+        # contractNumber -> contract dict (metadata for the device/sensors)
+        self.contracts: dict[str, dict] = {}
 
     def _compute_cost(self, hourly: list[dict]) -> list[dict]:
         """Multiply each hourly kWh by that hour's PVPC price. Blocking."""
@@ -101,16 +137,6 @@ class EnergiaxxiCoordinator(DataUpdateCoordinator):
         return {"contracts": contracts, "consumption": consumption, "costs": costs}
 
     async def _async_update_data(self):
-        # PVPC prices are national and independent of the Endesa account, so they
-        # are imported first and regardless of whether consumption is available.
-        price_points = await self.hass.async_add_executor_job(
-            self._fetch_prices, self.price_days
-        )
-        if price_points:
-            await async_import_price_statistics(
-                self.hass, price_points, self.currency, name="Energiaxxi PVPC Price"
-            )
-
         try:
             async with asyncio.timeout(90):
                 result = await self.hass.async_add_executor_job(self._fetch)

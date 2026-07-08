@@ -34,12 +34,14 @@
         "data": {
           "history_days": "Consumption history window (days)",
           "price_days": "Price history window (days)",
-          "scan_interval_hours": "Update interval (hours)"
+          "consumption_interval_hours": "Consumption update interval (hours)",
+          "price_interval_hours": "Price update interval (hours)"
         },
         "data_description": {
           "history_days": "Days of consumption history requested each update. Endesa only serves the current billing period, so large values may not return older data.",
           "price_days": "Days of PVPC price history to import each update. Prices are national and imported whether or not consumption is available.",
-          "scan_interval_hours": "How often to poll for new data (max 48)."
+          "consumption_interval_hours": "How often to poll Endesa for new consumption (max 48).",
+          "price_interval_hours": "How often to poll the CNMC for new PVPC prices (max 48)."
         }
       }
     }

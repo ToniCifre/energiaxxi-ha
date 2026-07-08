@@ -34,12 +34,14 @@
         "data": {
           "history_days": "Ventana de histórico de consumo (días)",
           "price_days": "Ventana de histórico de precios (días)",
-          "scan_interval_hours": "Intervalo de actualización (horas)"
+          "consumption_interval_hours": "Intervalo de actualización de consumo (horas)",
+          "price_interval_hours": "Intervalo de actualización de precios (horas)"
         },
         "data_description": {
           "history_days": "Días de histórico de consumo solicitados en cada actualización. Endesa solo sirve el periodo de facturación actual, así que valores altos pueden no devolver datos más antiguos.",
           "price_days": "Días de histórico de precios PVPC a importar en cada actualización. Los precios son nacionales y se importan haya o no consumo.",
-          "scan_interval_hours": "Frecuencia con la que se consultan nuevos datos (máx. 48)."
+          "consumption_interval_hours": "Frecuencia con la que se consulta el consumo a Endesa (máx. 48).",
+          "price_interval_hours": "Frecuencia con la que se consultan los precios PVPC a la CNMC (máx. 48)."
         }
       }
     }

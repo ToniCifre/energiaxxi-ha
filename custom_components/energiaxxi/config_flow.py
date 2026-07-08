@@ -6,13 +6,16 @@ import voluptuous as vol
 
 from .api import EnergiaxxiAPI, InvalidCredentialsError, IncapsulaDetectedError
 from .const import (
+    CONF_CONSUMPTION_INTERVAL_HOURS,
     CONF_HISTORY_DAYS,
     CONF_PRICE_DAYS,
-    CONF_SCAN_INTERVAL_HOURS,
+    CONF_PRICE_INTERVAL_HOURS,
+    DEFAULT_CONSUMPTION_INTERVAL_HOURS,
     DEFAULT_HISTORY_DAYS,
     DEFAULT_PRICE_DAYS,
-    DEFAULT_SCAN_INTERVAL_HOURS,
+    DEFAULT_PRICE_INTERVAL_HOURS,
     DOMAIN,
+    interval_option,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -117,8 +120,16 @@ class EnergiaxxiOptionsFlow(config_entries.OptionsFlow):
                     default=options.get(CONF_PRICE_DAYS, DEFAULT_PRICE_DAYS),
                 ): vol.All(int, vol.Range(min=1, max=60)),
                 vol.Required(
-                    CONF_SCAN_INTERVAL_HOURS,
-                    default=options.get(CONF_SCAN_INTERVAL_HOURS, DEFAULT_SCAN_INTERVAL_HOURS),
+                    CONF_CONSUMPTION_INTERVAL_HOURS,
+                    default=interval_option(
+                        options, CONF_CONSUMPTION_INTERVAL_HOURS, DEFAULT_CONSUMPTION_INTERVAL_HOURS
+                    ),
+                ): vol.All(int, vol.Range(min=1, max=48)),
+                vol.Required(
+                    CONF_PRICE_INTERVAL_HOURS,
+                    default=interval_option(
+                        options, CONF_PRICE_INTERVAL_HOURS, DEFAULT_PRICE_INTERVAL_HOURS
+                    ),
                 ): vol.All(int, vol.Range(min=1, max=48)),
             }
         )

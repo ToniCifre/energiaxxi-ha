@@ -1,13 +1,18 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from custom_components.energiaxxi.coordinator import EnergiaxxiCoordinator
+from custom_components.energiaxxi.coordinator import (
+    EnergiaxxiConsumptionCoordinator,
+    EnergiaxxiPriceCoordinator,
+)
 from custom_components.energiaxxi.prices import PvpcPriceError
 
 TZ = ZoneInfo("Europe/Madrid")
 
 
 class _FakePrices:
+    tz = TZ
+
     def __init__(self, by_day, raise_days=()):
         self._by_day = by_day
         self._raise = set(raise_days)
@@ -23,9 +28,15 @@ class _FakeApi:
 
 
 def _bare_coordinator(prices):
-    coord = EnergiaxxiCoordinator.__new__(EnergiaxxiCoordinator)
+    coord = EnergiaxxiConsumptionCoordinator.__new__(EnergiaxxiConsumptionCoordinator)
     coord.prices = prices
     coord.api = _FakeApi()
+    return coord
+
+
+def _bare_price_coordinator(prices):
+    coord = EnergiaxxiPriceCoordinator.__new__(EnergiaxxiPriceCoordinator)
+    coord.prices = prices
     return coord
 
 
@@ -68,6 +79,8 @@ def test_compute_cost_handles_price_error():
 
 
 class _AllDaysPrices:
+    tz = TZ
+
     def __init__(self, hours=24, raise_all=False):
         self._hours = hours
         self._raise = raise_all
@@ -79,7 +92,7 @@ class _AllDaysPrices:
 
 
 def test_fetch_prices_covers_requested_days():
-    coord = _bare_coordinator(_AllDaysPrices())
+    coord = _bare_price_coordinator(_AllDaysPrices())
     points = coord._fetch_prices(3)
     assert len(points) == 72  # 3 days * 24 hours
     # tz-aware, sorted-able, distinct hours
@@ -88,5 +101,5 @@ def test_fetch_prices_covers_requested_days():
 
 
 def test_fetch_prices_swallows_errors():
-    coord = _bare_coordinator(_AllDaysPrices(raise_all=True))
+    coord = _bare_price_coordinator(_AllDaysPrices(raise_all=True))
     assert coord._fetch_prices(3) == []
