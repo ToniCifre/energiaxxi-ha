@@ -1,0 +1,30 @@
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# AI
+.claude/
+.agents/
+skills-lock.json
+
+# Python
+.uv/
+.venv/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node
+node_modules/
+dist/
+
+# Logs
+logs/
+*.log
+
+# Project files
+data/

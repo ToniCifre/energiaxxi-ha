@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "config_flow": true,
   "documentation": "https://github.com/ToniCifre/energiaxxi",
-  "dependencies": [],
+  "dependencies": ["recorder"],
   "codeowners": ["@ToniCifre"],
-  "requirements": ["curl-cffi==0.13.0"]
+  "iot_class": "cloud_polling",
+  "integration_type": "service",
+  "requirements": ["curl-cffi==0.15.0"]
 }

@@ -1,4 +1,5 @@
 import base64
+import logging
 
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta
@@ -6,6 +7,12 @@ from functools import cached_property
 from collections import defaultdict
 from curl_cffi import Session, Curl
 from curl_cffi.requests.session import Response
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class EnergiaxxiApiError(Exception):
+    """Generic Energiaxxi API error (unexpected response / parse failure)."""
 
 
 class InvalidCredentialsError(Exception):
@@ -23,6 +30,7 @@ class EnergiaxxiAPI:
         self.tz = tz
 
         self.user_id: str | None = None
+        self._authenticated = False
         self.base_url = "https://www.movil.endesaclientes.com/neolapi-ib-es-rest"
 
         curl = Curl()
@@ -38,8 +46,6 @@ class EnergiaxxiAPI:
             'Transfer-Encoding': 'chunked',
             'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 10; Mi A2 Build/QKQ1.190910.002)',
         }
-
-        self._refresh_auth()
 
     def _api_request(self, method, path, headers=None, params=None, data=None, json=None, reauthorize=True) -> Response:
         response = self.session.request(
@@ -65,6 +71,10 @@ class EnergiaxxiAPI:
     def _post(self, path, headers=None, data=None, json=None, reauthorize=True) -> Response:
         return self._api_request("POST", path, headers=headers, data=data, json=json, reauthorize=reauthorize)
 
+    def authenticate(self):
+        """Force credential validation. Raises InvalidCredentialsError / IncapsulaDetectedError."""
+        self._refresh_auth()
+
     def _refresh_auth(self):
         body = {"appVersion": "1.5.3", "devicePlatform": "Android"}
         r = self._post("/business/version", json=body, reauthorize=False)
@@ -80,12 +90,16 @@ class EnergiaxxiAPI:
         if error := auth.get('errorMessage'):
             if error == "Alias/password incorrect for this resource":
                 raise InvalidCredentialsError("Invalid username or password.")
-            raise Exception(f"Authentication error: {error}")
+            raise EnergiaxxiApiError(f"Authentication error: {error}")
+
+        if not auth.get('id') or not auth.get('tgt'):
+            raise EnergiaxxiApiError(f"Unexpected authentication response: {auth}")
 
         self.user_id = auth['id']
 
         auth_token = base64.b64encode(f"{auth['id']}:{auth['tgt']}".encode()).decode()
         self.session.headers["Authorization"] = f"Basic {auth_token}"
+        self._authenticated = True
 
     @cached_property
     def user_info(self):
@@ -104,8 +118,21 @@ class EnergiaxxiAPI:
         """
         Returns dict  contract_number -> [ {date, consumption}, … ]
         """
+        if not self._authenticated:
+            self._refresh_auth()
+
+        try:
+            client_id = self.user_info["user"]["clientId"]
+        except (KeyError, TypeError) as err:
+            raise EnergiaxxiApiError(f"Unexpected user info response: {self.user_info}") from err
+
+        contracts = self.contract_info.get("contracts")
+        if not contracts:
+            raise EnergiaxxiApiError(f"No contracts in response: {self.contract_info}")
+
+        now = datetime.now(self.tz)
         consumption = defaultdict(list)
-        for contract in self.contract_info["contracts"]:
+        for contract in contracts:
             body = {
                 "contract": {
                     "str": contract["str"],
@@ -117,28 +144,41 @@ class EnergiaxxiAPI:
                     "effectiveDate": contract["effectiveDate"],
                     "companyHolderCode": contract["companyHolderCode"],
                 },
-                "infoRequested": {"rolId": "Titu", "clientId": self.user_info["user"]["clientId"]},
+                "infoRequested": {"rolId": "Titu", "clientId": client_id},
                 "periodDetail": {
                     "isCurrentPeriod": True,
                     "invoicedPeriod": {
-                        "from": (datetime.now() - timedelta(days=15)).strftime("%d/%m/%Y"),
-                        "to": datetime.now().strftime("%d/%m/%Y"),
+                        "from": (now - timedelta(days=15)).strftime("%d/%m/%Y"),
+                        "to": now.strftime("%d/%m/%Y"),
                     },
                     "billSequence": 0,
                 },
                 "userId": self.user_id,
             }
+            contract_number = contract["contractNumber"]
             r = self._post("/business/contracts/consumptiondetailed-v2", json=body).json()
-            print(r)
+            _LOGGER.debug("consumptiondetailed response for %s: %s", contract_number, r)
 
-            for day in r["consumptionDetailed"]["currentYearPeriodDetail"]["dayList"]:
-                for hc in day["hourList"]:
-                    consumption[contract["contractNumber"]].append(
+            day_list = (
+                (r.get("consumptionDetailed") or {})
+                .get("currentYearPeriodDetail", {})
+                .get("dayList")
+            )
+            if not day_list:
+                _LOGGER.warning("No consumption data for contract %s", contract_number)
+                continue
+
+            for day in day_list:
+                for hc in day.get("hourList", []):
+                    consum = (hc.get("hourDistribution") or {}).get("consumTotal")
+                    if consum is None:
+                        continue
+                    consumption[contract_number].append(
                         {
                             "datetime": datetime.strptime(
                                 f"{day['date']} {hc['hour']}", "%d/%m/%Y %H:%M"
                             ).replace(tzinfo=self.tz),
-                            "kwh": float(hc["hourDistribution"]["consumTotal"]),
+                            "kwh": float(consum),
                         }
                     )
 
