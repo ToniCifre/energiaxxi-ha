@@ -82,6 +82,17 @@ class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
         today = datetime.now(self.prices.tz).date()
         return {dt: p for dt, p in self.prices_by_dt.items() if dt.date() == today}
 
+    def window_prices(self, hours: int = 12) -> dict:
+        """{tz-aware hour datetime -> price} for [-hours, +hours] around the current hour."""
+        now = self._hour_now()
+        out = {}
+        for offset in range(-hours, hours + 1):
+            dt = now + timedelta(hours=offset)
+            price = self.prices_by_dt.get(dt)
+            if price is not None:
+                out[dt] = price
+        return dict(sorted(out.items()))
+
     def _fetch_prices(self, price_days: int) -> list[tuple]:
         """Fetch the last `price_days` days of hourly PVPC prices. Blocking."""
         points = []

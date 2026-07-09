@@ -81,12 +81,14 @@ class EnergiaxxiPriceSensor(_PvpcSensor):
 
     @property
     def extra_state_attributes(self):
-        prices = dict(sorted(self.coordinator.todays_prices().items()))
-        if not prices:
+        # window of -12h..+12h around the current hour (spans two days), so keys
+        # are ISO datetimes rather than "HH:00" which would collide across days.
+        window = self.coordinator.window_prices(12)
+        if not window:
             return {}
-        values = list(prices.values())
+        values = list(window.values())
         return {
-            "prices": {dt.strftime("%H:%M"): price for dt, price in prices.items()},
+            "prices": {dt.isoformat(): price for dt, price in window.items()},
             "min": min(values),
             "max": max(values),
             "average": round(sum(values) / len(values), 4),

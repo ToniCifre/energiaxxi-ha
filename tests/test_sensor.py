@@ -36,6 +36,15 @@ class _FakePriceCoordinator:
         today = datetime.now(TZ).date()
         return {dt: p for dt, p in self.prices_by_dt.items() if dt.date() == today}
 
+    def window_prices(self, hours=12):
+        now = self._hour_now()
+        out = {}
+        for offset in range(-hours, hours + 1):
+            dt = now + timedelta(hours=offset)
+            if dt in self.prices_by_dt:
+                out[dt] = self.prices_by_dt[dt]
+        return dict(sorted(out.items()))
+
 
 def _make(cls, prices_by_dt, *args):
     sensor = cls.__new__(cls)
@@ -61,15 +70,21 @@ def test_native_value_is_current_hour_price():
     assert sensor.native_value == prices[now_hour]
 
 
-def test_attributes_include_future_hours():
-    # full day incl. hours after the current one
-    prices = _today_prices(24)
+def test_attributes_window_uses_iso_keys():
+    now = datetime.now(TZ).replace(minute=0, second=0, microsecond=0)
+    # -12h..+12h around now, spanning two days
+    prices = {now + timedelta(hours=o): 0.10 + (o + 12) * 0.01 for o in range(-12, 13)}
     sensor = _sensor(prices)
     attrs = sensor.extra_state_attributes
-    assert len(attrs["prices"]) == 24  # all 24 hours, not just up to now
-    assert "23:00" in attrs["prices"]
+
+    assert len(attrs["prices"]) == 25  # -12..+12 inclusive
+    # keys are ISO datetimes, covering past and future
+    assert (now + timedelta(hours=12)).isoformat() in attrs["prices"]
+    assert (now - timedelta(hours=12)).isoformat() in attrs["prices"]
+    # outside the window is excluded
+    assert (now + timedelta(hours=13)).isoformat() not in attrs["prices"]
     assert attrs["min"] == 0.10
-    assert attrs["max"] == 0.33
+    assert round(attrs["max"], 2) == 0.34
 
 
 def test_attributes_empty_without_data():
