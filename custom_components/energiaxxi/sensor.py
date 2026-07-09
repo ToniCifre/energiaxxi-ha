@@ -46,8 +46,7 @@ class EnergiaxxiPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], Senso
     the CNMC already publishes) are exposed as attributes, since Home Assistant
     long-term statistics can only display up to the present."""
 
-    _attr_has_entity_name = True
-    _attr_translation_key = "pvpc_price"
+    _attr_name = "Energiaxxi PVPC price"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 4
     _attr_unique_id = "pvpc_price"
@@ -78,8 +77,7 @@ class EnergiaxxiPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], Senso
 class EnergiaxxiNextHourPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
     """PVPC price for the next hour."""
 
-    _attr_has_entity_name = True
-    _attr_translation_key = "pvpc_price_next_hour"
+    _attr_name = "Energiaxxi PVPC price next hour"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 4
     _attr_unique_id = "pvpc_price_next_hour"
@@ -97,18 +95,17 @@ class EnergiaxxiNextHourPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator
 class EnergiaxxiExtremeHourSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
     """Start time of today's cheapest / most expensive PVPC hour."""
 
-    _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coordinator: EnergiaxxiPriceCoordinator, cheapest: bool) -> None:
         super().__init__(coordinator)
         self._cheapest = cheapest
-        self._attr_translation_key = (
-            "pvpc_cheapest_hour" if cheapest else "pvpc_most_expensive_hour"
-        )
-        self._attr_unique_id = (
-            "pvpc_cheapest_hour" if cheapest else "pvpc_most_expensive_hour"
-        )
+        if cheapest:
+            self._attr_name = "Energiaxxi PVPC cheapest hour"
+            self._attr_unique_id = "pvpc_cheapest_hour"
+        else:
+            self._attr_name = "Energiaxxi PVPC most expensive hour"
+            self._attr_unique_id = "pvpc_most_expensive_hour"
         self._attr_device_info = _pvpc_device_info()
 
     def _extreme(self):

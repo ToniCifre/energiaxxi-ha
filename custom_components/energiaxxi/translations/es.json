@@ -46,22 +46,6 @@
       }
     }
   },
-  "entity": {
-    "sensor": {
-      "pvpc_price": {
-        "name": "Precio"
-      },
-      "pvpc_price_next_hour": {
-        "name": "Precio próxima hora"
-      },
-      "pvpc_cheapest_hour": {
-        "name": "Hora más barata"
-      },
-      "pvpc_most_expensive_hour": {
-        "name": "Hora más cara"
-      }
-    }
-  },
   "services": {
     "clear_statistics": {
       "name": "Borrar estadísticas",
