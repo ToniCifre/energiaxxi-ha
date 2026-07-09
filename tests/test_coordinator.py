@@ -96,10 +96,10 @@ class _AllDaysPrices:
 def test_fetch_prices_covers_requested_days():
     coord = _bare_price_coordinator(_AllDaysPrices())
     points = coord._fetch_prices(3)
-    assert len(points) == 72  # 3 days * 24 hours
-    # tz-aware, sorted-able, distinct hours
+    # price_days back + tomorrow = 4 days
+    assert len(points) == 96
     assert all(dt.tzinfo is not None for dt, _ in points)
-    assert len({dt for dt, _ in points}) == 72
+    assert len({dt for dt, _ in points}) == 96
 
 
 def test_fetch_prices_swallows_errors():

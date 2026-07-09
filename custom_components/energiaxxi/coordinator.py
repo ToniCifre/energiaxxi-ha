@@ -86,7 +86,8 @@ class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
         """Fetch the last `price_days` days of hourly PVPC prices. Blocking."""
         points = []
         today = datetime.now(self.prices.tz).date()
-        for i in range(price_days):
+        # -1 = tomorrow (CNMC publishes day-ahead) so the midnight transition has data
+        for i in range(-1, price_days):
             day = today - timedelta(days=i)
             try:
                 prices = self.prices.get_day_prices(day)

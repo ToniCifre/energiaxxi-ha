@@ -5,9 +5,10 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
@@ -41,7 +42,26 @@ def _pvpc_device_info() -> DeviceInfo:
     )
 
 
-class EnergiaxxiPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
+class _PvpcSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
+    """Base for PVPC sensors: their value depends on the wall clock, so refresh
+    at the top of every hour (the hourly prices are already cached)."""
+
+    def __init__(self, coordinator: EnergiaxxiPriceCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_device_info = _pvpc_device_info()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_track_time_change(self.hass, self._hourly_update, minute=0, second=0)
+        )
+
+    @callback
+    def _hourly_update(self, now) -> None:
+        self.async_write_ha_state()
+
+
+class EnergiaxxiPriceSensor(_PvpcSensor):
     """Current-hour PVPC price. Today's hourly prices (incl. future hours that
     the CNMC already publishes) are exposed as attributes, since Home Assistant
     long-term statistics can only display up to the present."""
@@ -54,7 +74,6 @@ class EnergiaxxiPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], Senso
     def __init__(self, coordinator: EnergiaxxiPriceCoordinator) -> None:
         super().__init__(coordinator)
         self._attr_native_unit_of_measurement = f"{coordinator.currency}/kWh"
-        self._attr_device_info = _pvpc_device_info()
 
     @property
     def native_value(self):
@@ -74,7 +93,7 @@ class EnergiaxxiPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], Senso
         }
 
 
-class EnergiaxxiNextHourPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
+class EnergiaxxiNextHourPriceSensor(_PvpcSensor):
     """PVPC price for the next hour."""
 
     _attr_name = "Energiaxxi PVPC price next hour"
@@ -85,14 +104,13 @@ class EnergiaxxiNextHourPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator
     def __init__(self, coordinator: EnergiaxxiPriceCoordinator) -> None:
         super().__init__(coordinator)
         self._attr_native_unit_of_measurement = f"{coordinator.currency}/kWh"
-        self._attr_device_info = _pvpc_device_info()
 
     @property
     def native_value(self):
         return self.coordinator.next_hour_price()
 
 
-class EnergiaxxiExtremeHourSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
+class EnergiaxxiExtremeHourSensor(_PvpcSensor):
     """Start time of today's cheapest / most expensive PVPC hour."""
 
     _attr_device_class = SensorDeviceClass.TIMESTAMP
@@ -106,7 +124,6 @@ class EnergiaxxiExtremeHourSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator],
         else:
             self._attr_name = "Energiaxxi PVPC most expensive hour"
             self._attr_unique_id = "pvpc_most_expensive_hour"
-        self._attr_device_info = _pvpc_device_info()
 
     def _extreme(self):
         prices = self.coordinator.todays_prices()
