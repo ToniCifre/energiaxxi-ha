@@ -46,8 +46,13 @@ This repository contains a simple custom integration for Home Assistant that ret
   include the fixed power term or taxes.
 - A **PVPC price statistic** (`energiaxxi:pvpc_price`, `<currency>/kWh`), a national hourly-mean statistic
   imported independently of the account — it is updated whether or not consumption data is available.
-- A **device** per contract (identified by its CUPS) with a diagnostic *Last reading* sensor that exposes
-  the contract metadata (CUPS, tariff, contracted power).
+- **PVPC price sensors** (live entities, under an *Energiaxxi PVPC* device), refreshed at the top of every
+  hour:
+  - `sensor.energiaxxi_pvpc_price` — current-hour price. Its `prices` attribute holds a ±24h window
+    (ISO-datetime keyed), plus `current` and today's `min`/`max`/`average`.
+  - `sensor.energiaxxi_pvpc_price_next_hour` — next hour's price.
+  - `sensor.energiaxxi_pvpc_cheapest_hour` / `sensor.energiaxxi_pvpc_most_expensive_hour` — timestamp of
+    today's cheapest / most expensive hour (price in the attributes).
 
 ### Adding it to the Energy dashboard
 
@@ -86,7 +91,7 @@ prices keep updating even if the Endesa fetch fails.
 - `custom_components/energiaxxi/prices.py` — client for the CNMC public PVPC hourly price API.
 - `custom_components/energiaxxi/coordinator.py` — separate price and consumption `DataUpdateCoordinator`s that fetch data and import statistics.
 - `custom_components/energiaxxi/statistics.py` — imports the energy, cost and price external statistics.
-- `custom_components/energiaxxi/sensor.py` — diagnostic *Last reading* sensor and per-contract device.
+- `custom_components/energiaxxi/sensor.py` — the PVPC price sensors (current, next hour, cheapest/most expensive).
 - `custom_components/energiaxxi/config_flow.py` — configuration and options flow for the Home Assistant UI.
 - `custom_components/energiaxxi/common.py`, `const.py` — shared utilities and constants.
 - `custom_components/energiaxxi/manifest.json` — integration metadata and dependencies.
