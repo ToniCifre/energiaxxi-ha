@@ -2,6 +2,11 @@ import logging
 
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+)
 import voluptuous as vol
 
 from .api import EnergiaxxiAPI, InvalidCredentialsError, IncapsulaDetectedError
@@ -109,28 +114,38 @@ class EnergiaxxiOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(data=user_input)
 
         options = self.config_entry.options
+        def number_box(min_value: int, max_value: int):
+            return vol.All(
+                NumberSelector(
+                    NumberSelectorConfig(
+                        min=min_value, max=max_value, step=1, mode=NumberSelectorMode.BOX
+                    )
+                ),
+                vol.Coerce(int),
+            )
+
         schema = vol.Schema(
             {
                 vol.Required(
                     CONF_HISTORY_DAYS,
                     default=options.get(CONF_HISTORY_DAYS, DEFAULT_HISTORY_DAYS),
-                ): vol.All(int, vol.Range(min=1, max=60)),
+                ): number_box(1, 60),
                 vol.Required(
                     CONF_PRICE_DAYS,
                     default=options.get(CONF_PRICE_DAYS, DEFAULT_PRICE_DAYS),
-                ): vol.All(int, vol.Range(min=1, max=60)),
+                ): number_box(1, 60),
                 vol.Required(
                     CONF_CONSUMPTION_INTERVAL_HOURS,
                     default=interval_option(
                         options, CONF_CONSUMPTION_INTERVAL_HOURS, DEFAULT_CONSUMPTION_INTERVAL_HOURS
                     ),
-                ): vol.All(int, vol.Range(min=1, max=48)),
+                ): number_box(1, 48),
                 vol.Required(
                     CONF_PRICE_INTERVAL_HOURS,
                     default=interval_option(
                         options, CONF_PRICE_INTERVAL_HOURS, DEFAULT_PRICE_INTERVAL_HOURS
                     ),
-                ): vol.All(int, vol.Range(min=1, max=48)),
+                ): number_box(1, 48),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

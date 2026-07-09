@@ -61,6 +61,13 @@ class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
         self.prices = PvpcPriceAPI()
         self.currency = hass.config.currency
         self.price_days = entry.options.get(CONF_PRICE_DAYS, DEFAULT_PRICE_DAYS)
+        # tz-aware hour datetime -> price (includes future hours already published)
+        self.prices_by_dt: dict[datetime, float] = {}
+
+    def current_price(self) -> float | None:
+        """Price for the current hour, or None if unknown."""
+        now = datetime.now(self.prices.tz).replace(minute=0, second=0, microsecond=0)
+        return self.prices_by_dt.get(now)
 
     def _fetch_prices(self, price_days: int) -> list[tuple]:
         """Fetch the last `price_days` days of hourly PVPC prices. Blocking."""
@@ -80,6 +87,7 @@ class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         points = await self.hass.async_add_executor_job(self._fetch_prices, self.price_days)
+        self.prices_by_dt = dict(points)
         if points:
             await async_import_price_statistics(
                 self.hass, points, self.currency, name="Energiaxxi PVPC Price"

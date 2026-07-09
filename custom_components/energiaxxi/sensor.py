@@ -1,15 +1,24 @@
 import logging
+from datetime import datetime
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .common import contract_location
 from .const import DOMAIN
-from .coordinator import EnergiaxxiConfigEntry, EnergiaxxiConsumptionCoordinator
+from .coordinator import (
+    EnergiaxxiConfigEntry,
+    EnergiaxxiConsumptionCoordinator,
+    EnergiaxxiPriceCoordinator,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,11 +28,13 @@ async def async_setup_entry(
     entry: EnergiaxxiConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator = entry.runtime_data.consumption
-    async_add_entities(
-        EnergiaxxiLastReadingSensor(coordinator, contract_number)
-        for contract_number in coordinator.contracts
-    )
+    consumption = entry.runtime_data.consumption
+    entities = [
+        EnergiaxxiLastReadingSensor(consumption, contract_number)
+        for contract_number in consumption.contracts
+    ]
+    entities.append(EnergiaxxiPriceSensor(entry.runtime_data.price))
+    async_add_entities(entities)
 
 
 class EnergiaxxiLastReadingSensor(CoordinatorEntity[EnergiaxxiConsumptionCoordinator], SensorEntity):
@@ -70,4 +81,49 @@ class EnergiaxxiLastReadingSensor(CoordinatorEntity[EnergiaxxiConsumptionCoordin
             "tariff": contract.get("specificTariff"),
             "rate": contract.get("rate"),
             "power_kw": contract.get("power"),
+        }
+
+
+class EnergiaxxiPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
+    """Current-hour PVPC price. Today's hourly prices (incl. future hours that
+    the CNMC already publishes) are exposed as attributes, since Home Assistant
+    long-term statistics can only display up to the present."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "pvpc_price"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 4
+    _attr_unique_id = "pvpc_price"
+
+    def __init__(self, coordinator: EnergiaxxiPriceCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_native_unit_of_measurement = f"{coordinator.currency}/kWh"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, "pvpc")},
+            name="Energiaxxi PVPC",
+            manufacturer="CNMC",
+            entry_type=DeviceEntryType.SERVICE,
+        )
+
+    @property
+    def native_value(self):
+        return self.coordinator.current_price()
+
+    @property
+    def extra_state_attributes(self):
+        today = datetime.now(self.coordinator.prices.tz).date()
+        todays = {
+            dt: price
+            for dt, price in self.coordinator.prices_by_dt.items()
+            if dt.date() == today
+        }
+        if not todays:
+            return {}
+        prices = dict(sorted(todays.items()))
+        values = list(prices.values())
+        return {
+            "prices": {dt.strftime("%H:%M"): price for dt, price in prices.items()},
+            "min": min(values),
+            "max": max(values),
+            "average": round(sum(values) / len(values), 4),
         }

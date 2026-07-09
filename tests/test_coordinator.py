@@ -103,3 +103,16 @@ def test_fetch_prices_covers_requested_days():
 def test_fetch_prices_swallows_errors():
     coord = _bare_price_coordinator(_AllDaysPrices(raise_all=True))
     assert coord._fetch_prices(3) == []
+
+
+def test_current_price_reads_current_hour():
+    coord = _bare_price_coordinator(_AllDaysPrices())
+    now_hour = datetime.now(TZ).replace(minute=0, second=0, microsecond=0)
+    coord.prices_by_dt = {now_hour: 0.31, now_hour + timedelta(hours=1): 0.99}
+    assert coord.current_price() == 0.31
+
+
+def test_current_price_none_when_missing():
+    coord = _bare_price_coordinator(_AllDaysPrices())
+    coord.prices_by_dt = {}
+    assert coord.current_price() is None
