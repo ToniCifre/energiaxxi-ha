@@ -48,9 +48,6 @@
   },
   "entity": {
     "sensor": {
-      "last_reading": {
-        "name": "Última lectura"
-      },
       "pvpc_price": {
         "name": "Precio"
       },
