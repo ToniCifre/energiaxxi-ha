@@ -66,16 +66,16 @@ class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
         # tz-aware hour datetime -> price (includes future hours already published)
         self.prices_by_dt: dict[datetime, float] = {}
 
-    def _hour_now(self) -> datetime:
+    def hour_now(self) -> datetime:
         return datetime.now(self.prices.tz).replace(minute=0, second=0, microsecond=0)
 
     def current_price(self) -> float | None:
         """Price for the current hour, or None if unknown."""
-        return self.prices_by_dt.get(self._hour_now())
+        return self.prices_by_dt.get(self.hour_now())
 
     def next_hour_price(self) -> float | None:
         """Price for the next hour, or None if unknown."""
-        return self.prices_by_dt.get(self._hour_now() + timedelta(hours=1))
+        return self.prices_by_dt.get(self.hour_now() + timedelta(hours=1))
 
     def todays_prices(self) -> dict:
         """{tz-aware hour datetime -> price} for today (includes future hours)."""
@@ -84,7 +84,7 @@ class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
 
     def window_prices(self, hours: int = 12) -> dict:
         """{tz-aware hour datetime -> price} for [-hours, +hours] around the current hour."""
-        now = self._hour_now()
+        now = self.hour_now()
         out = {}
         for offset in range(-hours, hours + 1):
             dt = now + timedelta(hours=offset)
