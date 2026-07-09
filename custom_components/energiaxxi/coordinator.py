@@ -64,10 +64,21 @@ class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
         # tz-aware hour datetime -> price (includes future hours already published)
         self.prices_by_dt: dict[datetime, float] = {}
 
+    def _hour_now(self) -> datetime:
+        return datetime.now(self.prices.tz).replace(minute=0, second=0, microsecond=0)
+
     def current_price(self) -> float | None:
         """Price for the current hour, or None if unknown."""
-        now = datetime.now(self.prices.tz).replace(minute=0, second=0, microsecond=0)
-        return self.prices_by_dt.get(now)
+        return self.prices_by_dt.get(self._hour_now())
+
+    def next_hour_price(self) -> float | None:
+        """Price for the next hour, or None if unknown."""
+        return self.prices_by_dt.get(self._hour_now() + timedelta(hours=1))
+
+    def todays_prices(self) -> dict:
+        """{tz-aware hour datetime -> price} for today (includes future hours)."""
+        today = datetime.now(self.prices.tz).date()
+        return {dt: p for dt, p in self.prices_by_dt.items() if dt.date() == today}
 
     def _fetch_prices(self, price_days: int) -> list[tuple]:
         """Fetch the last `price_days` days of hourly PVPC prices. Blocking."""

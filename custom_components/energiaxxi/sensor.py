@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -29,12 +28,27 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     consumption = entry.runtime_data.consumption
+    price = entry.runtime_data.price
     entities = [
         EnergiaxxiLastReadingSensor(consumption, contract_number)
         for contract_number in consumption.contracts
     ]
-    entities.append(EnergiaxxiPriceSensor(entry.runtime_data.price))
+    entities += [
+        EnergiaxxiPriceSensor(price),
+        EnergiaxxiNextHourPriceSensor(price),
+        EnergiaxxiExtremeHourSensor(price, cheapest=True),
+        EnergiaxxiExtremeHourSensor(price, cheapest=False),
+    ]
     async_add_entities(entities)
+
+
+def _pvpc_device_info() -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, "pvpc")},
+        name="Energiaxxi PVPC",
+        manufacturer="CNMC",
+        entry_type=DeviceEntryType.SERVICE,
+    )
 
 
 class EnergiaxxiLastReadingSensor(CoordinatorEntity[EnergiaxxiConsumptionCoordinator], SensorEntity):
@@ -98,12 +112,7 @@ class EnergiaxxiPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], Senso
     def __init__(self, coordinator: EnergiaxxiPriceCoordinator) -> None:
         super().__init__(coordinator)
         self._attr_native_unit_of_measurement = f"{coordinator.currency}/kWh"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, "pvpc")},
-            name="Energiaxxi PVPC",
-            manufacturer="CNMC",
-            entry_type=DeviceEntryType.SERVICE,
-        )
+        self._attr_device_info = _pvpc_device_info()
 
     @property
     def native_value(self):
@@ -111,15 +120,9 @@ class EnergiaxxiPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], Senso
 
     @property
     def extra_state_attributes(self):
-        today = datetime.now(self.coordinator.prices.tz).date()
-        todays = {
-            dt: price
-            for dt, price in self.coordinator.prices_by_dt.items()
-            if dt.date() == today
-        }
-        if not todays:
+        prices = dict(sorted(self.coordinator.todays_prices().items()))
+        if not prices:
             return {}
-        prices = dict(sorted(todays.items()))
         values = list(prices.values())
         return {
             "prices": {dt.strftime("%H:%M"): price for dt, price in prices.items()},
@@ -127,3 +130,57 @@ class EnergiaxxiPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], Senso
             "max": max(values),
             "average": round(sum(values) / len(values), 4),
         }
+
+
+class EnergiaxxiNextHourPriceSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
+    """PVPC price for the next hour."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "pvpc_price_next_hour"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 4
+    _attr_unique_id = "pvpc_price_next_hour"
+
+    def __init__(self, coordinator: EnergiaxxiPriceCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_native_unit_of_measurement = f"{coordinator.currency}/kWh"
+        self._attr_device_info = _pvpc_device_info()
+
+    @property
+    def native_value(self):
+        return self.coordinator.next_hour_price()
+
+
+class EnergiaxxiExtremeHourSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
+    """Start time of today's cheapest / most expensive PVPC hour."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator: EnergiaxxiPriceCoordinator, cheapest: bool) -> None:
+        super().__init__(coordinator)
+        self._cheapest = cheapest
+        self._attr_translation_key = (
+            "pvpc_cheapest_hour" if cheapest else "pvpc_most_expensive_hour"
+        )
+        self._attr_unique_id = (
+            "pvpc_cheapest_hour" if cheapest else "pvpc_most_expensive_hour"
+        )
+        self._attr_device_info = _pvpc_device_info()
+
+    def _extreme(self):
+        prices = self.coordinator.todays_prices()
+        if not prices:
+            return None
+        pick = min if self._cheapest else max
+        return pick(prices.items(), key=lambda item: item[1])
+
+    @property
+    def native_value(self):
+        extreme = self._extreme()
+        return extreme[0] if extreme else None
+
+    @property
+    def extra_state_attributes(self):
+        extreme = self._extreme()
+        return {"price": extreme[1]} if extreme else {}

@@ -53,6 +53,15 @@
       },
       "pvpc_price": {
         "name": "Precio PVPC"
+      },
+      "pvpc_price_next_hour": {
+        "name": "Precio PVPC próxima hora"
+      },
+      "pvpc_cheapest_hour": {
+        "name": "Hora más barata PVPC"
+      },
+      "pvpc_most_expensive_hour": {
+        "name": "Hora más cara PVPC"
       }
     }
   },
