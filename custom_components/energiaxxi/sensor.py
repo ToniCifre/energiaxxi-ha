@@ -86,14 +86,17 @@ class EnergiaxxiPriceSensor(_PvpcSensor):
         window = self.coordinator.window_prices(24)
         if not window:
             return {}
-        values = list(window.values())
-        return {
+        attrs = {
             "current": self.coordinator.hour_now().isoformat(),
             "prices": {dt.isoformat(): price for dt, price in window.items()},
-            "min": min(values),
-            "max": max(values),
-            "average": round(sum(values) / len(values), 4),
         }
+        # min/max/average are computed over today's prices only, not the window
+        today = list(self.coordinator.todays_prices().values())
+        if today:
+            attrs["min"] = min(today)
+            attrs["max"] = max(today)
+            attrs["average"] = round(sum(today) / len(today), 4)
+        return attrs
 
 
 class EnergiaxxiNextHourPriceSensor(_PvpcSensor):

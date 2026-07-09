@@ -77,13 +77,27 @@ def test_attributes_window_uses_iso_keys():
     sensor = _sensor(prices)
     attrs = sensor.extra_state_attributes
 
-    assert len(attrs["prices"]) == 25  # only the ±12h we provided
-    # keys are ISO datetimes, covering past and future
+    assert len(attrs["prices"]) == 25  # window keeps all provided hours
     assert attrs["current"] == now.isoformat()
     assert (now + timedelta(hours=12)).isoformat() in attrs["prices"]
     assert (now - timedelta(hours=12)).isoformat() in attrs["prices"]
-    assert attrs["min"] == 0.10
-    assert round(attrs["max"], 2) == 0.34
+
+
+def test_min_max_average_only_today():
+    now = datetime.now(TZ).replace(minute=0, second=0, microsecond=0)
+    midnight = now.replace(hour=0)
+    prices = {midnight + timedelta(hours=h): 0.10 + h * 0.01 for h in range(24)}  # today
+    # add a cheaper yesterday hour and a pricier tomorrow hour (must be ignored)
+    prices[midnight - timedelta(hours=1)] = 0.01
+    prices[midnight + timedelta(hours=24)] = 9.99
+    sensor = _sensor(prices)
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["min"] == 0.10          # today's min, not yesterday's 0.01
+    assert round(attrs["max"], 2) == 0.33  # today's max, not tomorrow's 9.99
+    assert attrs["average"] == round(sum(0.10 + h * 0.01 for h in range(24)) / 24, 4)
+    # the window attribute still includes the other days
+    assert (midnight - timedelta(hours=1)).isoformat() in attrs["prices"]
 
 
 def test_attributes_empty_without_data():
