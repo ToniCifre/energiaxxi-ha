@@ -52,16 +52,16 @@
         "name": "Last reading"
       },
       "pvpc_price": {
-        "name": "PVPC price"
+        "name": "Price"
       },
       "pvpc_price_next_hour": {
-        "name": "PVPC price next hour"
+        "name": "Price next hour"
       },
       "pvpc_cheapest_hour": {
-        "name": "PVPC cheapest hour"
+        "name": "Cheapest hour"
       },
       "pvpc_most_expensive_hour": {
-        "name": "PVPC most expensive hour"
+        "name": "Most expensive hour"
       }
     }
   },
