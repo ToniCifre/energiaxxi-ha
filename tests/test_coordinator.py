@@ -1,6 +1,8 @@
-from datetime import datetime, timedelta
+import asyncio
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import custom_components.energiaxxi.coordinator as coord_mod
 from custom_components.energiaxxi.coordinator import (
     EnergiaxxiConsumptionCoordinator,
     EnergiaxxiPriceCoordinator,
@@ -103,6 +105,48 @@ def test_fetch_prices_covers_requested_days():
 def test_fetch_prices_swallows_errors():
     coord = _bare_price_coordinator(_AllDaysPrices(raise_all=True))
     assert coord._fetch_prices(3) == []
+
+
+# --- _needed_days -----------------------------------------------------------
+
+def _needed_coordinator(history_days):
+    coord = EnergiaxxiConsumptionCoordinator.__new__(EnergiaxxiConsumptionCoordinator)
+    coord.api = _FakeApi()
+    coord.history_days = history_days
+    coord.hass = None
+    return coord
+
+
+def _patch_range(monkeypatch, first, last):
+    async def fake_range(hass, statistic_id):
+        return first, last
+    monkeypatch.setattr(coord_mod, "async_get_stat_range", fake_range)
+
+
+def test_needed_days_full_when_nothing_stored(monkeypatch):
+    coord = _needed_coordinator(25)
+    _patch_range(monkeypatch, None, None)
+    assert asyncio.run(coord._needed_days(["C"])) == 25
+
+
+def test_needed_days_full_when_widened(monkeypatch):
+    coord = _needed_coordinator(60)
+    today = datetime.now(TZ)
+    # stored data only starts 10 days ago, but we now request 60 -> backfill
+    first = (today - timedelta(days=10)).astimezone(timezone.utc)
+    last = today.astimezone(timezone.utc)
+    _patch_range(monkeypatch, first, last)
+    assert asyncio.run(coord._needed_days(["C"])) == 60
+
+
+def test_needed_days_incremental(monkeypatch):
+    coord = _needed_coordinator(25)
+    today = datetime.now(TZ)
+    first = (today - timedelta(days=25)).astimezone(timezone.utc)
+    last = (today - timedelta(days=3)).astimezone(timezone.utc)  # last stored 3d ago
+    _patch_range(monkeypatch, first, last)
+    # refetch from last stored day forward: 3 days + 1
+    assert asyncio.run(coord._needed_days(["C"])) == 4
 
 
 def test_current_price_reads_current_hour():

@@ -28,9 +28,11 @@ from .const import (
 )
 from .prices import PvpcPriceAPI, PvpcPriceError
 from .statistics import (
+    async_get_stat_range,
     async_import_cost_statistics,
     async_import_energy_statistics,
     async_import_price_statistics,
+    energy_statistic_id,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -142,10 +144,10 @@ class EnergiaxxiConsumptionCoordinator(DataUpdateCoordinator):
             cost_rows.append({"datetime": dt, "cost": row["kwh"] * price})
         return cost_rows
 
-    def _fetch(self) -> dict:
+    def _fetch(self, fetch_days: int) -> dict:
         """Blocking API access, runs in the executor."""
         contracts = {c["contractNumber"]: c for c in self.api.contracts()}
-        consumption = self.api.fetch_consumption(self.history_days)
+        consumption = self.api.fetch_consumption(fetch_days)
 
         costs = {}
         for cid, hourly in consumption.items():
@@ -155,10 +157,32 @@ class EnergiaxxiConsumptionCoordinator(DataUpdateCoordinator):
 
         return {"contracts": contracts, "consumption": consumption, "costs": costs}
 
+    async def _needed_days(self, contract_numbers) -> int:
+        """How many days to fetch: incremental normally, full window when a
+        contract has no data yet or the window was widened into the past."""
+        today = datetime.now(self.api.tz).date()
+        requested_start = today - timedelta(days=self.history_days)
+        min_last = None
+        for cid in contract_numbers:
+            first, last = await async_get_stat_range(self.hass, energy_statistic_id(cid))
+            if first is None:
+                return self.history_days  # nothing stored -> full
+            if requested_start < first.astimezone(self.api.tz).date():
+                return self.history_days  # widened into the past -> backfill
+            last_date = last.astimezone(self.api.tz).date()
+            min_last = last_date if min_last is None else min(min_last, last_date)
+        if min_last is None:
+            return self.history_days
+        # incremental: refetch from the last stored day forward
+        return max(1, min((today - min_last).days + 1, self.history_days))
+
     async def _async_update_data(self):
         try:
+            contracts = await self.hass.async_add_executor_job(self.api.contracts)
+            fetch_days = await self._needed_days([c["contractNumber"] for c in contracts])
+            _LOGGER.debug("Fetching %d day(s) of consumption", fetch_days)
             async with asyncio.timeout(90):
-                result = await self.hass.async_add_executor_job(self._fetch)
+                result = await self.hass.async_add_executor_job(self._fetch, fetch_days)
         except InvalidCredentialsError as err:
             raise ConfigEntryAuthFailed from err
         except (IncapsulaDetectedError, EnergiaxxiApiError) as err:

@@ -17,25 +17,36 @@ def _install_fake_recorder(monkeypatch):
     table = []
     capture = {}
 
-    def fake_get_last(hass, n, sid, convert, types):
-        rows = [r for r in table if r["sid"] == sid]
-        if not rows:
-            return {}
-        last = rows[-1]
-        return {sid: [{"sum": last["sum"], "start": last["start"].timestamp()}]}
+    def fake_sdp(hass, start, end, ids, period, units, types):
+        sid = next(iter(ids))
+        rows = [
+            r for r in table
+            if r["sid"] == sid and r["start"].timestamp() < end.timestamp()
+        ]
+        rows.sort(key=lambda r: r["start"])
+        return {sid: [{"start": r["start"].timestamp(), "sum": r["sum"]} for r in rows]}
 
     def fake_add(hass, metadata, stats):
+        sid = metadata["statistic_id"]
         for s in stats:
-            table.append({"sid": metadata["statistic_id"], "start": s["start"],
-                          "sum": s.get("sum"), "state": s.get("state"),
-                          "mean": s.get("mean")})
+            # upsert by (sid, start), like the recorder
+            table[:] = [
+                r for r in table if not (r["sid"] == sid and r["start"] == s["start"])
+            ]
+            table.append({"sid": sid, "start": s["start"], "sum": s.get("sum"),
+                          "state": s.get("state"), "mean": s.get("mean")})
+        table.sort(key=lambda r: (r["sid"], r["start"]))
         capture["metadata"] = metadata
         capture["n"] = len(stats)
 
     monkeypatch.setattr(st, "get_instance", lambda hass: _FakeInstance())
-    monkeypatch.setattr(st, "get_last_statistics", fake_get_last)
+    monkeypatch.setattr(st, "statistics_during_period", fake_sdp)
     monkeypatch.setattr(st, "async_add_external_statistics", fake_add)
     return table, capture
+
+
+def _sids(table, sid):
+    return [r for r in table if r["sid"] == sid]
 
 
 def _rows(day, hours, kwh=0.5):
@@ -68,6 +79,25 @@ def test_overlapping_refetch_does_not_double_count(monkeypatch):
     assert table[-1]["sum"] == 36.0         # 12 + 24*1.0, no double count
     sums = [r["sum"] for r in table]
     assert sums == sorted(sums)             # monotonic
+
+
+def test_backfill_older_days_are_inserted(monkeypatch):
+    # regression: widening the window must insert older days (previously skipped)
+    table, _ = _install_fake_recorder(monkeypatch)
+    imp = st.async_import_energy_statistics
+
+    asyncio.run(imp(None, "C", _rows(25, 24, 0.5)))            # only day25 stored first
+    assert len(table) == 24
+
+    # now a wider window arrives: day24 (older!) + day25
+    asyncio.run(imp(None, "C", _rows(24, 24, 1.0) + _rows(25, 24, 0.5)))
+
+    assert len(table) == 48                        # day24 backfilled
+    starts = [r["start"] for r in table]
+    assert min(starts) == datetime(2026, 6, 24, 0, 0, tzinfo=TZ)
+    sums = [r["sum"] for r in table]
+    assert sums == sorted(sums)                    # recomputed from a 0 baseline
+    assert table[0]["sum"] == 1.0                  # day24 hour0 = 1.0, baseline 0
 
 
 def test_empty_input_noop(monkeypatch):
