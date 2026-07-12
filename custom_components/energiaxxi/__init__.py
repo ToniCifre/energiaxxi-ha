@@ -9,7 +9,11 @@ from .coordinator import (
     EnergiaxxiPriceCoordinator,
     EnergiaxxiRuntimeData,
 )
-from .statistics import cost_statistic_id, energy_statistic_id, price_statistic_id
+from .statistics import cost_statistic_id, energy_statistic_id
+
+# No longer imported; kept so the clear service can purge legacy data.
+# Todo: remove
+_LEGACY_PRICE_STATISTIC_ID = f"{DOMAIN}:pvpc_price"
 
 PLATFORMS = [Platform.SENSOR]
 SERVICE_CLEAR_STATISTICS = "clear_statistics"
@@ -43,7 +47,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
         return
 
     async def _handle_clear(call: ServiceCall) -> None:
-        ids = {price_statistic_id()}
+        ids = {_LEGACY_PRICE_STATISTIC_ID}
         for entry in hass.config_entries.async_entries(DOMAIN):
             data = getattr(entry, "runtime_data", None)
             if data is None:

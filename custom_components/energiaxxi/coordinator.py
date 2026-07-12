@@ -31,7 +31,6 @@ from .statistics import (
     async_get_stat_range,
     async_import_cost_statistics,
     async_import_energy_statistics,
-    async_import_price_statistics,
     energy_statistic_id,
 )
 
@@ -111,12 +110,9 @@ class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
         return points
 
     async def _async_update_data(self):
+        # Prices feed the PVPC sensors; they are not imported as a statistic.
         points = await self.hass.async_add_executor_job(self._fetch_prices, self.price_days)
         self.prices_by_dt = dict(points)
-        if points:
-            await async_import_price_statistics(
-                self.hass, points, self.currency, name="Energiaxxi PVPC Price"
-            )
         return points
 
 

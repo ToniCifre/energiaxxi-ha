@@ -37,36 +37,6 @@ def cost_statistic_id(contract_id) -> str:
     return f"{DOMAIN}:energiaxxi_{slugify(str(contract_id))}_cost"
 
 
-def price_statistic_id() -> str:
-    return f"{DOMAIN}:pvpc_price"
-
-
-async def async_import_price_statistics(hass: HomeAssistant, points, currency, name=None):
-    """Import hourly PVPC price as a mean statistic. points: list[(datetime, price)].
-
-    Prices are national (not per contract) and known day-ahead, so this is a plain
-    mean statistic with no cumulative sum; re-importing overwrites by timestamp.
-    """
-    if not points:
-        return
-
-    points = sorted(points, key=lambda p: p[0])
-    stats = [StatisticData(start=dt, mean=price) for dt, price in points]
-
-    metadata = StatisticMetaData(
-        name=name or "Energiaxxi PVPC Price",
-        source=DOMAIN,
-        statistic_id=price_statistic_id(),
-        unit_of_measurement=f"{currency}/kWh",
-        unit_class=None,
-        has_sum=False,
-        mean_type=StatisticMeanType.ARITHMETIC,
-    )
-    await get_instance(hass).async_add_executor_job(
-        async_add_external_statistics, hass, metadata, stats
-    )
-
-
 async def async_import_energy_statistics(hass: HomeAssistant, contract_id, hourly, name=None):
     """Import hourly energy (kWh). hourly: list[{datetime, kwh}]."""
     points = [(row["datetime"], row["kwh"]) for row in hourly]

@@ -25,7 +25,7 @@ This repository contains a simple custom integration for Home Assistant that ret
 
 - Domain: `energiaxxi`
 - Purpose: query hourly consumption and contract-related data linked to an EnergiaXXI account and expose them as
-  long-term statistics (energy, PVPC cost and PVPC price) in Home Assistant.
+  long-term statistics (energy and PVPC cost) plus live PVPC price sensors in Home Assistant.
 - Integration: uses a `config_flow` (integration configuration UI) and the `curl-cffi` library to communicate with the
   web API.
 
@@ -44,8 +44,6 @@ This repository contains a simple custom integration for Home Assistant that ret
 - **Hourly cost statistics** for **PVPC** contracts (`energiaxxi:energiaxxi_<contract>_cost`), computed from
   the official CNMC PVPC hourly prices. This is an approximation of the PVPC energy term — it does not
   include the fixed power term or taxes.
-- A **PVPC price statistic** (`energiaxxi:pvpc_price`, `<currency>/kWh`), a national hourly-mean statistic
-  imported independently of the account — it is updated whether or not consumption data is available.
 - **PVPC price sensors** (live entities, under an *Energiaxxi PVPC* device), refreshed at the top of every
   hour:
   - `sensor.energiaxxi_pvpc_price` — current-hour price. Its `prices` attribute holds a ±24h window
@@ -90,7 +88,7 @@ prices keep updating even if the Endesa fetch fails.
 - `custom_components/energiaxxi/api.py` — HTTP client that authenticates and fetches detailed consumption data.
 - `custom_components/energiaxxi/prices.py` — client for the CNMC public PVPC hourly price API.
 - `custom_components/energiaxxi/coordinator.py` — separate price and consumption `DataUpdateCoordinator`s that fetch data and import statistics.
-- `custom_components/energiaxxi/statistics.py` — imports the energy, cost and price external statistics.
+- `custom_components/energiaxxi/statistics.py` — imports the energy and cost external statistics.
 - `custom_components/energiaxxi/sensor.py` — the PVPC price sensors (current, next hour, cheapest/most expensive).
 - `custom_components/energiaxxi/config_flow.py` — configuration and options flow for the Home Assistant UI.
 - `custom_components/energiaxxi/common.py`, `const.py` — shared utilities and constants.
