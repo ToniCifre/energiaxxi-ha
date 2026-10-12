@@ -96,7 +96,7 @@ class EnergiaxxiPriceCoordinator(DataUpdateCoordinator):
         """Fetch the last `price_days` days of hourly PVPC prices. Blocking."""
         points = []
         today = datetime.now(self.prices.tz).date()
-        # -1 = tomorrow (CNMC publishes day-ahead) so the midnight transition has data
+        # -1 = tomorrow (REE publishes day-ahead) so the midnight transition has data
         for i in range(-1, price_days):
             day = today - timedelta(days=i)
             try:
@@ -159,7 +159,7 @@ class EnergiaxxiConsumptionCoordinator(DataUpdateCoordinator):
 
         costs = {}
         for cid, hourly in consumption.items():
-            # CNMC API serves PVPC prices; only meaningful for PVPC contracts.
+            # REE API serves PVPC prices; only meaningful for PVPC contracts.
             if contracts.get(cid, {}).get("specificTariff") == "PVPC":
                 costs[cid] = self._compute_cost(hourly)
 

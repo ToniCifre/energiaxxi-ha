@@ -42,7 +42,7 @@ This repository contains a simple custom integration for Home Assistant that ret
 - **Hourly energy statistics** per contract (`energiaxxi:energiaxxi_<contract>_energy`, kWh). These are
   external statistics rather than live sensors, because EnergiaXXI reports the data about a week behind.
 - **Hourly cost statistics** for **PVPC** contracts (`energiaxxi:energiaxxi_<contract>_cost`), computed from
-  the official CNMC PVPC hourly prices. This is an approximation of the PVPC energy term — it does not
+  the official PVPC hourly prices published by [REE (Red Eléctrica de España)](https://www.ree.es/es/apidatos). This is an approximation of the PVPC energy term — it does not
   include the fixed power term or taxes.
 - **PVPC price sensors** (live entities, under an *Energiaxxi PVPC* device), refreshed at the top of every
   hour:
@@ -78,7 +78,7 @@ Configure) to tune:
 | Consumption history window (days) | 25 | Days of consumption requested each update. Endesa only serves the current billing period, so large values may not return older data. |
 | Price history window (days) | 7 | Days of PVPC prices imported each update. |
 | Consumption update interval (hours) | 12 | How often to poll Endesa (max 48). |
-| Price update interval (hours) | 12 | How often to poll the CNMC for prices (max 48). |
+| Price update interval (hours) | 12 | How often to poll REE for prices (max 48). |
 
 Consumption and prices are fetched by two independent coordinators, so they poll on their own schedules —
 prices keep updating even if the Endesa fetch fails.
@@ -86,7 +86,7 @@ prices keep updating even if the Endesa fetch fails.
 ### Main component files
 
 - `custom_components/energiaxxi/api.py` — HTTP client that authenticates and fetches detailed consumption data.
-- `custom_components/energiaxxi/prices.py` — client for the CNMC public PVPC hourly price API.
+- `custom_components/energiaxxi/prices.py` — client for the [REE REData API](https://www.ree.es/es/apidatos) (`apidatos.ree.es`, public, no token), PVPC indicator, peninsular system.
 - `custom_components/energiaxxi/coordinator.py` — separate price and consumption `DataUpdateCoordinator`s that fetch data and import statistics.
 - `custom_components/energiaxxi/statistics.py` — imports the energy and cost external statistics.
 - `custom_components/energiaxxi/sensor.py` — the PVPC price sensors (current, next hour, cheapest/most expensive).

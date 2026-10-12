@@ -52,11 +52,23 @@ def consumption_response(date="24/06/2026", n_hours=24, kwh="0.5"):
     }
 
 
-def price_response(base=0.20):
+def price_response(base=0.20, day="2026-06-29", offset="+02:00"):
+    """REE-shaped response: PVPC values in €/MWh, one per local hour."""
     return {
-        "preciosHora": [
-            {"hora": f"{h:02d}-{h+1:02d}h", "precio": round(base + h * 0.001, 6), "clase": "verde"}
-            for h in range(24)
+        "included": [
+            {
+                "type": "PVPC",
+                "id": "1001",
+                "attributes": {
+                    "values": [
+                        {
+                            "value": round((base + h * 0.001) * 1000, 3),
+                            "datetime": f"{day}T{h:02d}:00:00.000{offset}",
+                        }
+                        for h in range(24)
+                    ]
+                },
+            }
         ]
     }
 

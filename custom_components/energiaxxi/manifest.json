@@ -9,5 +9,5 @@
   "codeowners": ["@ToniCifre"],
   "iot_class": "cloud_polling",
   "integration_type": "service",
-  "requirements": ["curl-cffi==0.15.0"]
+  "requirements": ["curl-cffi==0.16.3"]
 }

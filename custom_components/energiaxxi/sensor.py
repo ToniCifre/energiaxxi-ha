@@ -7,7 +7,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -20,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnergiaxxiConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     price = entry.runtime_data.price
     async_add_entities(
@@ -37,7 +37,7 @@ def _pvpc_device_info() -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, "pvpc")},
         name="Energiaxxi PVPC",
-        manufacturer="CNMC",
+        manufacturer="Red Eléctrica (REE)",
         entry_type=DeviceEntryType.SERVICE,
     )
 
@@ -63,7 +63,7 @@ class _PvpcSensor(CoordinatorEntity[EnergiaxxiPriceCoordinator], SensorEntity):
 
 class EnergiaxxiPriceSensor(_PvpcSensor):
     """Current-hour PVPC price. Today's hourly prices (incl. future hours that
-    the CNMC already publishes) are exposed as attributes, since Home Assistant
+    REE already publishes) are exposed as attributes, since Home Assistant
     long-term statistics can only display up to the present."""
 
     _attr_name = "Energiaxxi PVPC price"

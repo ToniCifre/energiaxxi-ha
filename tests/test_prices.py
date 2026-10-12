@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -21,12 +21,12 @@ def _api(monkeypatch, response, status=200):
     return api, calls
 
 
-def test_timestamp_in_url_is_midnight_madrid_ms(monkeypatch):
-    api, calls = _api(monkeypatch, price_response())
+def test_url_requests_whole_local_day(monkeypatch):
+    api, calls = _api(monkeypatch, price_response(day="2026-07-07"))
     api.get_day_prices(date(2026, 7, 7))
-    expected = int(datetime(2026, 7, 7, tzinfo=TZ).timestamp() * 1000)
-    assert f"/{expected}-1-1" in calls[0]
-    assert expected == 1783375200000
+    assert calls[0].startswith(PvpcPriceAPI.BASE_URL)
+    assert "start_date=2026-07-07T00:00&end_date=2026-07-07T23:59" in calls[0]
+    assert "time_trunc=hour" in calls[0]
 
 
 def test_parses_prices_by_hour(monkeypatch):
@@ -52,6 +52,28 @@ def test_http_error_raises(monkeypatch):
 
 
 def test_empty_prices_raise(monkeypatch):
-    api, _ = _api(monkeypatch, {"preciosHora": []})
+    api, _ = _api(monkeypatch, {"included": []})
+    with pytest.raises(PvpcPriceError):
+        api.get_day_prices(date(2026, 6, 29))
+
+
+def test_converts_mwh_to_kwh(monkeypatch):
+    api, _ = _api(monkeypatch, price_response(base=0.221))
+    assert api.get_day_prices(date(2026, 6, 29))[0] == pytest.approx(0.221)
+
+
+def test_ignores_values_outside_requested_day(monkeypatch):
+    resp = price_response(day="2026-06-29")
+    resp["included"][0]["attributes"]["values"].append(
+        {"value": 999.0, "datetime": "2026-06-30T00:00:00.000+02:00"}
+    )
+    api, _ = _api(monkeypatch, resp)
+    prices = api.get_day_prices(date(2026, 6, 29))
+    assert len(prices) == 24
+    assert prices[0] == pytest.approx(0.20)
+
+
+def test_missing_pvpc_indicator_raises(monkeypatch):
+    api, _ = _api(monkeypatch, {"included": [{"type": "Precio mercado spot", "id": "600"}]})
     with pytest.raises(PvpcPriceError):
         api.get_day_prices(date(2026, 6, 29))
