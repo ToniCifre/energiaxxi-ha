@@ -1,0 +1,51 @@
+# Turns a switch on at the start of today's cheapest PVPC hour and off one
+# hour later, using sensor.energiaxxi_pvpc_cheapest_hour from this integration.
+#
+# Paste it in Settings -> Automations -> Create automation -> ⋮ -> Edit in YAML
+# and replace switch.TU_ENCHUFE with your switch's entity_id.
+#
+# Known limitations:
+# - If Home Assistant is down at the exact on/off time, that action is missed.
+# - If the cheapest hour is 23:00-24:00 the "+1h" trigger never fires (at
+#   midnight the sensor already points to the next day), so that case turns
+#   the switch off after a 1h delay instead. mode: restart lets a 00:00
+#   cheapest hour on the next day cancel that pending turn-off.
+alias: Enchufe en la hora PVPC más barata
+description: >-
+  Enciende el enchufe al inicio de la hora más barata del día (sensor de la
+  integración Energiaxxi) y lo apaga una hora después.
+mode: restart
+triggers:
+  - trigger: time
+    at: sensor.energiaxxi_pvpc_cheapest_hour
+    id: encender
+  - trigger: time
+    at:
+      entity_id: sensor.energiaxxi_pvpc_cheapest_hour
+      offset: "01:00:00"
+    id: apagar
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: encender
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: switch.TU_ENCHUFE
+          - if:
+              - condition: time
+                after: "23:00:00"
+            then:
+              - delay: "01:00:00"
+              - action: switch.turn_off
+                target:
+                  entity_id: switch.TU_ENCHUFE
+      - conditions:
+          - condition: trigger
+            id: apagar
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: switch.TU_ENCHUFE
